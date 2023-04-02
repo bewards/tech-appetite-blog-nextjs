@@ -2,7 +2,7 @@
 
 /** @type {import("pliny/config").PlinyConfig } */
 const siteMetadata = {
-  title: 'Next.js Starter Blog',
+  title: 'Tech Appetite',
   author: 'Ben Sewards',
   headerTitle: 'Tech Appetite',
   description: 'A library of tech blog posts curated for Sitecore and all things Front-end.',
