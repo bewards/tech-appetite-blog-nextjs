@@ -40,7 +40,7 @@ export const getStaticProps = async ({ params }) => {
 export default function BlogPostPage({ post, authorDetails, prev, next }) {
   return (
     <>
-      {'draft' in post && post.draft === true ? (
+      {'draft' in post && post.draft === true && process.env.APP_ROLE !== 'LOCAL' ? (
         <div className="mt-24 text-center">
           <PageTitle>
             Under Construction{' '}
