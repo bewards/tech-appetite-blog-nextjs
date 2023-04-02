@@ -12,7 +12,14 @@ export default function Projects() {
             Projects
           </h1>
           <p className="text-lg leading-7 text-gray-500 dark:text-gray-400">
-            Showcase your projects with a hero image (16 x 9)
+            Under Construction -
+            <span role="img" aria-label="roadwork sign">
+              🚧
+            </span>
+          </p>
+          <p className="text-lg leading-7 text-gray-500 dark:text-gray-400">
+            Below you will find Large-scale Client Applications I've led implementations for, either
+            as a Redesign, lift-and-shift, or net-new design and builds.
           </p>
         </div>
         <div className="container py-12">
