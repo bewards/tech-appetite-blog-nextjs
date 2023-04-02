@@ -8,8 +8,8 @@ const siteMetadata = {
   description: 'A library of tech blog posts curated for Sitecore and all things Front-end.',
   language: 'en-us',
   theme: 'system', // system, dark or light
-  siteUrl: 'https://tailwind-nextjs-starter-blog.vercel.app',
-  siteRepo: 'https://github.com/timlrx/tailwind-nextjs-starter-blog',
+  siteUrl: 'https://www.tech-appetite.com/',
+  siteRepo: 'https://github.com/bewards/tech-appetite-blog-nextjs',
   siteLogo: '/static/images/logo.png',
   image: '/static/images/avatar.png',
   socialBanner: '/static/images/twitter-card.png',
