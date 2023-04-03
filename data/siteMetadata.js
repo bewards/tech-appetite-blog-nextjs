@@ -8,7 +8,7 @@ const siteMetadata = {
   description: 'A library of tech blog posts curated for Sitecore and all things Front-end.',
   language: 'en-us',
   theme: 'system', // system, dark or light
-  siteUrl: 'https://www.tech-appetite.com/',
+  siteUrl: 'https://www.tech-appetite.com',
   siteRepo: 'https://github.com/bewards/tech-appetite-blog-nextjs',
   siteLogo: '/static/images/logo.png',
   image: '/static/images/avatar.png',
@@ -18,7 +18,7 @@ const siteMetadata = {
   twitter: 'https://twitter.com/BenjaminSewards',
   facebook: '',
   youtube: '',
-  linkedin: 'https://www.linkedin.com/in/bensewards/',
+  linkedin: 'https://www.linkedin.com/in/bensewards',
   locale: 'en-US',
   analytics: {
     // If you want to use an analytics provider you have to add it to the
