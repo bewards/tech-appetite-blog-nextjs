@@ -34,7 +34,7 @@ With Application Insights enabled on the CM/CD, we can view high-level event log
 1. Check the Log Stream directly from the Next.js Linux Web App
 If the Event Logs don't provide enough information about the Response, head over to the Log Stream to see outbound Requests. In my scenario, this helped me realize that the GraphQL endpoint is returning empty route data for our TEST CD. By default, the Sitecore Next.js application will use the Edge endpoint, but we can't directly access the GraphQL Playground on CD so we can take the GraphQL query from the log stream and place it directly into the query attribute of the following URL below (without the /ui part):
 > `<cd-host>/sitecore/api/graph/edge?sc_apikey=API_KEY_GUID&query=YOUR_RAW_QUERY_FROM_LOG_STREAM`
-<br>
+<br />
 ![log streaming nextjs app](/static/images/blog-content-images/2023-04-25_log-streaming-nextjs.png)
 ![empty route data](/static/images/blog-content-images/2023-4-25_empty-graphql-route-data.png)
 
