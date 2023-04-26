@@ -3,6 +3,8 @@ import PageTitle from '@/components/PageTitle'
 import { MDXComponents } from '@/components/MDXComponents'
 import { sortedBlogPost, coreContent } from 'pliny/utils/contentlayer'
 import { allBlogs, allAuthors } from 'contentlayer/generated'
+import React from 'react'
+
 const DEFAULT_LAYOUT = 'PostLayout'
 export async function getStaticPaths() {
   return {
@@ -38,6 +40,16 @@ export const getStaticProps = async ({ params }) => {
   }
 }
 export default function BlogPostPage({ post, authorDetails, prev, next }) {
+  React.useEffect(() => {
+    const loadImageZoom = async () => {
+      const imageZoom = await import('fast-image-zoom').then((mod) => mod.default)
+      imageZoom({
+        selector: `img[alt]:not([alt=""]):not([data-image-zoom-disabled])`,
+      })
+    }
+    loadImageZoom()
+  }, [])
+
   return (
     <>
       {'draft' in post && post.draft === true && process.env.APP_ROLE !== 'LOCAL' ? (
