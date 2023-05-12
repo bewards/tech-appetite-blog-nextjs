@@ -16,7 +16,7 @@ We are here again on the Headless Journey with a vague error. This time around o
 ![Sitecore Experience Editor connecting to your rendering host failed](/static/images/blog-content-images/2023-05-12_exp-editor-error.png)
 
 # Method Not Allowed Error
-We've seen a similar error in the past with Experience Editor. Instead of an Internal Server Error, the rendering host failed due to a `Method not allowed error`. In that scenario, the Next.js application wasn't able to communicate with itself due to a restricted CORS policy and access restrictions. By viewing the Next.js log stream, we can see the request from CM/CD make it to the rendering host and then a status code of 403 occurs from a GET request.
+We've seen a similar error in the past with Experience Editor. Instead of an Internal Server Error, the rendering host failed due to a `Method not allowed error`. In that scenario, the Next.js application wasn't able to communicate with itself due to a restricted CORS policy and access restrictions. By viewing the Next.js log stream, we can see the request from CM/CD make it to the rendering host and then a status code of 403 occurs from a GET request that occurs on the rendering host to itself.
 
 To resolve this error, simply make sure your Azure Services have the following inbound communication access set up:
 
