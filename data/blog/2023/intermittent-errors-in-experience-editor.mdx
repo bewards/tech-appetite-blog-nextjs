@@ -1,0 +1,53 @@
+---
+title: 'Intermittent Sitecore Headless Experience Editor Issues on Azure PaaS'
+date: '2023-05-12'
+summary: When Sitecore 10.3 Experience Editor is effectively useless, you cannot preview the changes you are making on the Headless CM. Sometimes it works, sometimes it doesn't. Let's get it to work 100% of the time!
+tags: ['Sitecore JSS', 'Next.js']
+draft: false
+images: ['/static/images/blog-thumbnails/sitecore-jss_nextjs.png']
+authors: ['default']
+---
+import AzureNetworkTable from '@/components/jsx/azure-network-access-table'
+
+When Sitecore Experience Editor is effectively useless, you cannot preview the changes you are making on the Headless CM. Sometimes it works, sometimes it doesn't.
+
+We are here again on the Headless Journey with a vague error. This time around on my TEST environment, where the `SITECORE_API_HOST` is set to the CD endpoint, we receive the following error while trying to load a page in Experience Editor:
+
+![Sitecore Experience Editor connecting to your rendering host failed](/static/images/blog-content-images/2023-05-12_exp-editor-error.png)
+
+# Method Not Allowed Error
+We've seen a similar error in the past with Experience Editor. Instead of an Internal Server Error, the rendering host failed due to a `Method not allowed error`. In that scenario, the Next.js application wasn't able to communicate with itself due to a restricted CORS policy and access restrictions. By viewing the Next.js log stream, we can see the request from CM/CD make it to the rendering host and then a status code of 403 occurs from a GET request.
+
+To resolve this error, simply make sure your Azure Services have the following inbound communication access set up:
+
+<AzureNetworkTable />
+
+# Internal Server Error
+The Internal Server Error can be harder to track down. I like to start with viewing the network requests in Application Insights. This can filter down to the timeframe of occurance and allow you to open a failed requests end-to-end transactions.
+
+![Viewing Azure network requests for errors](/static/images/blog-content-images/2023-05-12_exp-editor-issue-azure-network-request.png)
+
+We can see that the request again makes it to the rendering host, but fails with the HTTP Status 500. If we turn over to the log entries, we start to see the following errors around `Editing data cache miss`:
+
+```
+2023-05-10T04:38:18.333398337Z 2023-05-10T04:38:18.333Z sitecore-jss:editing retrieving editing data for { key: 'a6904518-754a-4340-9349-9b773d05af1a-wavsdn4pno' }
+2023-05-10T04:38:18.334292854Z Editing data cache miss for key a6904518-754a-4340-9349-9b773d05af1a-wavsdn4pno at /tmp/if-you-need-to-delete-this-open-an-issue-sync-disk-cache/editing-data
+2023-05-10T04:38:18.335783382Z Error: Unable to get editing data for preview {"key":"a6904518-754a-4340-9349-9b773d05af1a-wavsdn4pno"}
+```
+
+According to Sitecore, the Next.js application is written to be hosted on Vercel, and “instability of the temporary directory used by the editing data cache” can cause such errors on other platforms depending on the state of persistent storage. Luckily there's a documented workaround [here](https://doc.sitecore.com/xp/en/developers/hd/201/sitecore-headless-development/override-the-default-directory-used-by-the-disk-based-editing-cache-implementation.html).
+
+**In Summary**:
+*The disk-based cache used for integrating JSS Next.js apps with advanced Sitecore content and layout editors uses, by default, the operating system temp directory. When hosting your Next.js application on Vercel, the default temp directory works fine. However, on other platforms, using the default temp directory can cause the editing data middleware to malfunction resulting in intermittent 500 errors in Experience Editor.*
+
+Sitecore uses the npm package `sync-disk-cache` for editing state. Inside of the JSS `EditingDataDiskCache` implementation, the cache instance is set up by default with `os.tmpdir()`, which will result in using the tmp directory on a linux web app. In an Azure Linux Web App, by default any directory outside of /home is not going to be set up as persistent storage.
+
+After adding and editing the ts files from the above Sitecore documented workaround, we should also make sure the service plan enabled persistent storage. To change this default behavior, in the App Service Plan, set the site config variable `WEBSITES_ENABLE_APP_SERVICE_STORAGE` to true.
+
+In the created file `editing.ts`, I made a small change to the path since the Sitecore documentation uses windows-based pathing `\\`, which fails in the sync-disk-cache package when ran on linux. We also don't need this override for disk cache on local environments, so we can check for the env variable `APP_ENV` and add the value of `local` to your `.env.local` development file that gets picked up by Next.js.
+<br/>
+```TypeScript
+// Override the default editingDataDiskCache with an accessible temp directory
+export const azureEditingDataDiskCache =
+  process.env.APP_ENV !== 'local' ? new EditingDataDiskCache('/home/editing-disk-cache') : new EditingDataDiskCache();
+```
