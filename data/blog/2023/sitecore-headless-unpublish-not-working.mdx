@@ -12,7 +12,7 @@ Unpublishing an item in Sitecore is usually a non-trivial operation. You navigat
 
 Sitecore Support was able to reproduce the issue on their edge environment. Luckily, if you're on XM Cloud, the current workaround is to publish the "parent" of the item expected to be unpublished. A bug with a reference number 604866 was registered for this. If you're self-hosting or want to learn more about more features of self-hosting, read further for my workaround.
 
-# Self Hosting Background
+## Self Hosting Background
 For background, this issue occurs when the following criteria is met:
 
 - Standalone build output mode is configured via `nextConfig.output = 'standalone'`
@@ -21,25 +21,25 @@ For background, this issue occurs when the following criteria is met:
 - The Next.js application is using page router
 - The Next.js application is either hosted using a Linux App Service or Kubernetes
 
-Your mileage may vary with the above cases. I haven't had a chance to thoroughly test whether the issue still occurs without standalone built output mode, but it's definitely a side-effect of disabling isrMemoryCacheSize. Let's go through these one by one. If you'd like to skip to the actual workaround, click here.
+Your mileage may vary with the above cases. I haven't had a chance to thoroughly test whether the issue still occurs without standalone built output mode, but it's definitely a side-effect of disabling isrMemoryCacheSize. Let's go through these one by one. If you'd like to skip to the actual workaround, <a href="#workaround">click here</a>.
 
-## Standalone build output mode who?
+### Standalone build output mode who?
 This is a [Next.js build feature](https://nextjs.org/docs/pages/api-reference/next-config-js/output) that helps reduce the size of deployments drastically. If you want to use this feature, make sure that you handle copying the static assets over to the Next.js build afterwards.
 
 *I'll report back here with a post on handling standalone output.*
 
-## Why did I disable isrMemoryCacheSize?
+### Why did I disable isrMemoryCacheSize?
 I first came across this property when I was troubleshooting our environments for an issue where refreshing the page would result in sporadic behavior of the content being shown. The page would switch back and forth between different component datasources, showing the old datasource content randomly. This was occuring on our Next.js App Service whether or not it was scaled out past 1 instance. Next.js's [Self-hosting ISR page](https://nextjs.org/docs/pages/building-your-application/data-fetching/incremental-static-regeneration#self-hosting-isr) led me to this workaround since it mentions caching issues, which resolved the sporadic behavior.
 
-## SSG w/ ISR - Doesn't that revalidate pages?!
+### SSG w/ ISR - Doesn't that revalidate pages?!
 I know what you're thinking - "Incremental Static Regeneration revalidates every N seconds". While this is true, the Next.js code revalidates differently based on the `notFound` property that is returned from `getStaticProps` on the dynamic page route. It revalidates correctly if the provider used is Memory Cache, but stale data doesn't get checked for the File System based cache. You can read more about the issue on Vercel's github at [Issue 37945](https://github.com/vercel/next.js/issues/37945) where I've also commented asking for a timline and the [PR that supposedly fixes it](https://github.com/vercel/next.js/pull/55107).
 
 Believe it or not, Next.js with SSG/ISR doesn't actually **remove** the generated static page files with a revalidate. Go ahead, try it yourself. The revalidate will purge the cache provider and only update the file system when a regeneration occurs.
 
-## Using Page Router
+### Using Page Router
 This one's pretty easy. If you're using Sitecore's JSS Next.js template, you're using page router. App Router is on Sitecore's radar for 2024.
 
-# Self Hosting Workaround
+<div id="workaround"><h2>Self Hosting Workaround</h2></div>
 Since we know that deleting the file-based files resolves the issue, that's the route we're going to take. When the `notFound` flag is true within the dynamic catch-all page route, we can purge the current request's html and json files. Let's programatically delete some files.
 
 ### purge-files.ts
