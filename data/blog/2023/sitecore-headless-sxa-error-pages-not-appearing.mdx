@@ -1,5 +1,5 @@
 ---
-title: 'Sitecore Headless SXA 404 and 500 Error Page content Not Being Loaded'
+title: 'Sitecore Headless SXA 404 and 500 Error Page Content Not Loading'
 date: '2023-09-29'
 summary: The configured SXA site-level error pages were not appearing for our site.
 tags: ['Sitecore JSS', 'Next.js']
@@ -8,9 +8,8 @@ images: ['/static/images/blog-thumbnails/sitecore-jss_nextjs.png']
 authors: ['default']
 ---
 
-When Sitecore Experience Editor is effectively useless, you cannot preview the changes you are making on the Headless CM. Sometimes it works, sometimes it doesn't.
+## Brief History of SXA
+One of the greatest benefits of Sitecore Experience Accelerator (SXA) has always been that you could pick and choose the module's features that you'd want to use, one of the being the Error Pages. With Sitecore Headless came a new era of SXA - an era of mainly not knowing exactly which features of SXA were actually supported by the JSS Frameworks.
 
-![Sitecore Experience Editor connecting to your rendering host failed](/static/images/blog-content-images/2023-05-12_exp-editor-error.png)
-
-# Method Not Allowed Error
-We've seen a similar error in the past with Experience Editor. Instead of an Internal Server Error, the rendering host 
+## The Issue
+After doing the typical setup of Site level Error Page fields (`Page not found link` and `Server error page link`) and pointing them at some 404/500 page types under the home node, I noticed that loading a page that didn't exist resulted in a correct status code of 404, but the content displayed is the default 404/500 content that comes from the fallback Sitecore JSS template React components (e.g, `<NotFound />`), instead of the actual linked Sitecore page.
