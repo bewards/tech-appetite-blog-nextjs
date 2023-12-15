@@ -1,15 +1,63 @@
 ---
 title: 'Sitecore Headless SXA 404 and 500 Error Page Content Not Loading'
-date: '2023-09-29'
-summary: The configured SXA site-level error pages were not appearing for our site.
+date: '2023-12-15'
+summary: The configured SXA site-level error pages were not appearing for our site, so content authors could not manage the error pages content.
 tags: ['Sitecore JSS', 'Next.js']
-draft: true
+draft: false
 images: ['/static/images/blog-thumbnails/sitecore-jss_nextjs.png']
 authors: ['default']
 ---
 
-## Brief History of SXA
-One of the greatest benefits of Sitecore Experience Accelerator (SXA) has always been that you could pick and choose the module's features that you'd want to use, one of the being the Error Pages. With Sitecore Headless came a new era of SXA - an era of mainly not knowing exactly which features of SXA were actually supported by the JSS Frameworks.
+One of the greatest benefits of Sitecore Experience Accelerator (SXA) has always been that you could pick and choose the module's features that you'd want to use - one of the being the Error Pages. With Sitecore Headless came a new era of SXA - an era of mainly not knowing exactly which features of SXA were actually supported by the JSS Frameworks.
 
-## The Issue
-After doing the typical setup of Site level Error Page fields (`Page not found link` and `Server error page link`) and pointing them at some 404/500 page types under the home node, I noticed that loading a page that didn't exist resulted in a correct status code of 404, but the content displayed is the default 404/500 content that comes from the fallback Sitecore JSS template React components (e.g, `<NotFound />`), instead of the actual linked Sitecore page.
+## 404, Where are you?
+After doing the typical setup of Site level Error Page fields (`Page not found link` and `Server error page link`) and pointing them at some 404/500 page types under the home node, I noticed that loading a page that didn't exist resulted in a correct status code of 404, but the content displayed was still the default 404/500 content that comes from the fallback Sitecore JSS template React components (e.g, `<NotFound />`), instead of the content from the linked Sitecore page.
+
+> Keep in mind that our JSS version at the time of writing this is v21.1.6, which happens to be a couple minor versions behind the latest. We also have the Next.js multisite plugin enabled, but that will not change the desired outcome.
+
+Since we're also using GraphQL, troubleshooting the issue started at the Error Pages GraphQL Query that Sitecore uses starting from the `404.tsx` page's GraphQL service:
+
+```GraphQL
+  query ErrorPagesQuery($siteName: String!, $language: String!) {
+    site {
+      siteInfo(site: $siteName) {
+        errorHandling(language: $language) {
+          notFoundPage {
+            rendered
+          }
+          notFoundPagePath
+          serverErrorPage {
+            rendered
+          }
+          serverErrorPagePath
+        }
+      }
+    }
+  }
+```
+
+Or if you want to run the request directly from the URL (since the CD doesn't have playground enabled):
+```
+https://your-cd.net/sitecore/api/graph/edge?sc_apikey=<your_key>&query=query{site { siteInfo(site: "<your_site>") { errorHandling(language: "en") { notFoundPage { rendered } notFoundPagePath serverErrorPage { rendered } serverErrorPagePath } } } }
+```
+
+Strangely enough the response from Postman returns the rendered properties as null from the Sitecore CD Layout Service (Edge Endpoint) but the path properties were filled out with the sitecore item path.
+
+Looking closer at the `404.tsx` page file, we can see an environment variable for `DISABLE_SSG_FETCH`, that if set to true, will prevent the page, during build OR revalidation, to not fetch the error pages:
+
+```tsx
+  if (!process.env.DISABLE_SSG_FETCH) {
+    try {
+      resultErrorPages = await errorPagesService.fetchErrorPages();
+    } catch (error) {
+      console.log('Error occurred while fetching error pages');
+      console.log(error);
+    }
+  }
+```
+
+If you're using purely Incremental Site Regeneration (ISR), that means that during the build, you are not generating any pages, and you have this environment variable set to true. If that variable happens to be in your `.env.production` file, then during revalidation (ISR) at the page request level, the code will still not fetch the error pages, resulting in fallback static content.
+
+Even with this update, the issue remained. After some back and forth with Sitecore support, we came to the following conclusion of areas you should check to get the Error Pages working again:
+1. Uncheck the `ServerSideRenderingEngineEditOnly` field in the SXA Site Settings Item.
+2. Make sure that the item name of the Error pages **do not contain spaces** (such as 404notfound - set the Display Name field to something prettier). This is a Sitecore bug with the GraphQL implementation and is tracked with reference number **594686**. I was told to create new error page items and re-link them from Site settings.
