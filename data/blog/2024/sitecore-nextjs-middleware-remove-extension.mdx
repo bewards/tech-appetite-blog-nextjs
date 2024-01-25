@@ -1,0 +1,183 @@
+---
+title: 'How to use the Next.js Middleware to Remove Extensions on Requests'
+date: '2024-01-25'
+summary: The Next.js middlware is a powerful layer sitting between requests and responses that can be customized for redirects, rewrites, and manipulation of headers. Join me as I walk through some of the caveats when integrating with Sitecore.
+tags: ['Sitecore JSS', 'Next.js']
+draft: false
+images: ['/static/images/blog-thumbnails/sitecore-jss_nextjs.png']
+authors: ['default']
+---
+
+The Next.js middlware is a powerful layer sitting between requests and responses that can be customized for redirects, rewrites, manipulation of request and response headers, or even responding directly. The middleware is ran on **every** request, unless the `matcher` filter is specified within the middleware's config export.
+
+I won't go over the basics of the routing Middleware in this post, but you can find the Sitecore specific Pages Router documentation [here](https://nextjs.org/docs/pages/building-your-application/routing/middleware).
+
+## The Ask
+The client asked for removal of the `.aspx` extension from requests routes to Sitecore. Our Azure PaaS self hosted Sitecore environment sits behind Azure FrontDoor. Front Door is a global service that can distribute requests across regions and services depending on action rule sets, while also taking care of WAF rules the same way that an Azure Application Gateway would. Unfortunately where this service doesn't shine (yet) is having the ability to strip extensions from incoming requests. We could set up a Gateway and have it be handled another level down, but then these rules would still need to be covered at the infrastructure level and duplicated across environments.
+
+## How About The SXA Redirect Map?
+Sitecore XA comes built-in with Redirect functionality, which actually has been covered by Sitecore JSS for some time now - let's say since around v21.1 and the introduction of the Sitecore Redirects Middleware. You can quickly check if your version ([JSS Next.js Template](https://doc.sitecore.com/xp/en/developers/hd/21/sitecore-headless-development/the-jss-app-initializer.html)) has this functionality by searching for `redirects.ts`.
+
+Like the JSS `bootstrap` plugin architecture, Sitecore took the same approach for Middleware at `\src\lib\middleware\plugins\index.ts`. The redirects plugin is disabled in development, so if you'd like to test it out locally, make sure to navigate to the redirects file and set:
+
+```tsx
+disabled: () => false,
+```
+
+Once that is complete, you can set up an SXA redirect in Sitecore and verify through the browser redirect and from the rendering host logs. The example below shows the JSS debug log from the container's rendering host for a 301 redirect set up from `/this-page-should-redirect` to `/dev/accordion`. We can see that the middleware plugin is working and correctly logging everything, even the response of the SXA site redirects used for determining whether the current path redirects or skips:
+
+```
+2024-01-24 15:44:49 sitecore-jss:redirects redirects middleware start: {
+2024-01-24 15:44:49   pathname: '/this-page-should-redirect',
+2024-01-24 15:44:49   language: 'en',
+2024-01-24 15:44:49   hostname: 'www.company.localhost'
+2024-01-24 15:44:49 } +18s
+
+2024-01-24 15:44:49 sitecore-jss:redirects request: {
+2024-01-24 15:44:49   url: 'http://cm/sitecore/api/graph/edge',
+2024-01-24 15:44:49   headers: { sc_apikey: '[API_KEY]' },
+2024-01-24 15:44:49   query: '\n  query RedirectsQuery($siteName: String!) {\n    site {\n      siteInfo(site: $siteName) {\n        redirects {\n          pattern\n          target\n          redirectType\n          isQueryStringPreserved\n          locale\n        }\n      }\n    }\n  }\n',
+2024-01-24 15:44:49   variables: { siteName: 'company' }
+2024-01-24 15:44:49 } +20s
+
+2024-01-24 15:44:49 sitecore-jss:redirects response: {
+2024-01-24 15:44:49   site: {
+2024-01-24 15:44:49   siteInfo: {
+2024-01-24 15:44:49   redirects: [
+2024-01-24 15:44:49   {
+2024-01-24 15:44:49   pattern: '/this-page-should-redirect/',
+2024-01-24 15:44:49   target: '/dev/accordion',
+2024-01-24 15:44:49   redirectType: 'REDIRECT_301',
+2024-01-24 15:44:49   isQueryStringPreserved: true,
+2024-01-24 15:44:49   locale: ''
+2024-01-24 15:44:49 },
+2024-01-24 15:44:49   {
+2024-01-24 15:44:49   pattern: '/pagea/',
+2024-01-24 15:44:49   target: '/dev/accordion',
+2024-01-24 15:44:49   redirectType: 'REDIRECT_301',
+2024-01-24 15:44:49   isQueryStringPreserved: true,
+2024-01-24 15:44:49   locale: ''
+2024-01-24 15:44:49 },
+2024-01-24 15:44:49   length: 2
+2024-01-24 15:44:49 ]
+2024-01-24 15:44:49 }
+2024-01-24 15:44:49 }
+2024-01-24 15:44:49 } +85ms
+
+2024-01-24 15:44:49 sitecore-jss:redirects redirects middleware end: {
+2024-01-24 15:44:49   redirected: false,
+2024-01-24 15:44:49   status: 301,
+2024-01-24 15:44:49   url: '',
+2024-01-24 15:44:49   headers: {
+2024-01-24 15:44:49   location: 'http://localhost:3000/dev/accordion',
+2024-01-24 15:44:49   set-cookie: 'sc_site=company; Path=/'
+2024-01-24 15:44:49 }
+2024-01-24 15:44:49 } +89ms
+
+2024-01-24 15:44:49 sitecore-jss:redirects redirects middleware start: {
+2024-01-24 15:44:49   pathname: '/dev/accordion',
+2024-01-24 15:44:49   language: 'en',
+2024-01-24 15:44:49   hostname: 'www.company.localhost'
+2024-01-24 15:44:49 } +35ms
+
+2024-01-24 15:44:49 sitecore-jss:redirects skipped (redirect does not exist) +1ms
+
+2024-01-24 15:44:49 sitecore-jss:redirects redirects middleware end: {
+2024-01-24 15:44:49   redirected: false,
+2024-01-24 15:44:49   status: 200,
+2024-01-24 15:44:49   url: '',
+2024-01-24 15:44:49   headers: {
+2024-01-24 15:44:49   set-cookie: 'sc_site=company; Path=/',
+2024-01-24 15:44:49   x-middleware-rewrite: 'http://localhost:3000/_site_company/dev/accordion',
+2024-01-24 15:44:49   x-sc-rewrite: '/_site_company/dev/accordion'
+2024-01-24 15:44:49 }
+2024-01-24 15:44:49 } +0ms
+
+2024-01-24 15:44:49 2024-01-24T20:44:49.860Z sitecore-jss:layout fetching layout data for /dev/accordion en company
+```
+
+The extension removal can be set up as an SXA redirect map item **starting from JSS SDK version 21.2.3**. Before this version, the Redirect plugin failed to include redirects that included periods.
+
+![Sitecore SXA Redirect Map Regex for Extension Removal](/static/images/blog-content-images/2024-01-24_sxa-redirect-map-regex.png)
+
+The [Pull Request for that fix](https://github.com/Sitecore/jss/pull/1566) updates the Next.js middleware `matcher` and removes the period character from the base redirect plugin's `excludeRoute()`. If you can't upgrade, technically you could just update the `matcher` on your current version of JSS to the latest, but you still won't have control over the base middleware plugin excluding routes with period.
+
+```js
+export const config = {
+  /*
+   * Match all paths except for:
+   * 1. /api routes
+   * 2. /_next (Next.js internals)
+   * 3. /sitecore/api (Sitecore API routes)
+   * 4. /- (Sitecore media)
+   * 5. all root files inside /public (e.g. /favicon.ico)
+   */
+  matcher: ['/', '/((?!api/|_next/|healthz|sitecore/api/|-/|favicon.ico|sc_logo.svg).*)'],
+};
+```
+
+Let's move on to a more manual approach within the middleware itself.
+
+## Next.js Middleware to the Rescue
+For JSS versions less than 21.2.3, we can still use the Next.js middleware directly to catch our `/path/page.aspx` routes.
+
+At this point, we know that the `redirects.ts` plugin excludes routes through the use of the JSS `RedirectsMiddleware` handler (see import below), so we should stay away from adding our custom code within this files `exec` method:
+
+```tsx
+// THIS PLUGIN WILL SKIP PATHS WITH PERIODS!!
+import { RedirectsMiddleware } from '@sitecore-jss/sitecore-jss-nextjs/middleware';
+
+// [other code left out on purpose]
+
+/**
+ * exec async method - to find coincidence in url.pathname and redirects of site
+ * @param req<NextRequest>
+ * @returns Promise<NextResponse>
+ */
+async exec(req: NextRequest, res?: NextResponse): Promise<NextResponse> {
+  return this.redirectsMiddleware.getHandler()(req, res);
+}
+
+```
+
+Instead, we can go up one level to the `index.ts` file within `\src\lib\middleware\plugins` and add our code directly to the top level of the middleware execution method **before** the rest of the plugins run:
+
+```tsx
+import { NextResponse } from 'next/server';
+import type { NextFetchEvent, NextRequest } from 'next/server';
+import * as plugins from 'temp/middleware-plugins';
+import { debug } from '@sitecore-jss/sitecore-jss';
+
+export interface MiddlewarePlugin {
+  /**
+   * Detect order when the plugin should be called, e.g. 0 - will be called first (can be a plugin which data is required for other plugins)
+   */
+  order: number;
+  /**
+   * A middleware to be called, it's required to return @type {NextResponse} for other middlewares
+   */
+  exec(req: NextRequest, res?: NextResponse, ev?: NextFetchEvent): Promise<NextResponse>;
+}
+
+export default async function middleware(req: NextRequest, ev: NextFetchEvent): Promise<NextResponse> {
+  const response = NextResponse.next();
+
+  /**
+   * ! Custom: ASPX extension removal
+   */
+  const REG_ASPX_EXTENSION = /^[^.]+.aspx/;
+  if (REG_ASPX_EXTENSION.test(req.nextUrl.pathname)) {
+    debug.redirects('aspx extension found');
+    const pathWithoutExtension =
+      req.nextUrl.pathname.substring(0, req.nextUrl.pathname.lastIndexOf('.')) || req.nextUrl.pathname;
+    return NextResponse.redirect(`${req.nextUrl.origin}${pathWithoutExtension}${req.nextUrl.search}`, 301);
+  }
+
+  // middleware/plugins are sorted by order and ran with the exec method
+  return (Object.values(plugins) as MiddlewarePlugin[])
+    .sort((p1, p2) => p1.order - p2.order)
+    .reduce((p, plugin) => p.then((res) => plugin.exec(req, res, ev)), Promise.resolve(response));
+}
+```
+
+Another alternative approach would be to create your own plugin class that inherits `MiddlewarePlugin` that does the above code within it's own `exec` method. This approach is a better fit for maintainability and upgrades.
