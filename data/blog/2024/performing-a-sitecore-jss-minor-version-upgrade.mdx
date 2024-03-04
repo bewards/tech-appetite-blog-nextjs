@@ -1,0 +1,134 @@
+---
+title: 'Perform a Sitecore JSS Minor Version Upgrade'
+date: '2024-03-05'
+summary: Learn how to perform a minor version Sitecore JSS upgrade from v21.1.6 to v21.6.0 and the tips along the way.
+tags: ['Sitecore JSS', 'Sitecore Upgrade', 'Next.js']
+draft: false
+images: ['/static/images/blog-thumbnails/sitecore-jss_upgrade.jpeg']
+authors: ['default']
+---
+
+Upgrading your JSS Application frequently (or atleast on a semi-anually interval) will not only bring new features and support, but it will help keep your application up to date, preventing the headache of larger slow upgrades. Sitecore has provided a very useful upgrade document for [Upgrading from JSS 21.5 Next.js apps to version 21.6](https://doc.sitecore.com/xmc/en/developers/jss/216/jss-xmc/upgrade-jss-21-5-next-js-apps-to-version-21-6.html). Even if your upgrade doesn't span multiple minor versions, keep on reading for an approach and tips that could help shorten your JSS Upgrade times.
+
+## Start by Running the JSS Install Command
+
+As a pre-requisite check to installing a new JSS app locally, make sure to first update your global reference to `@sitecore-jss/sitecore-jss-cli` to the latest version: `npm install -g @sitecore-jss/sitecore-jss-cli@latest`.
+
+To simplify the upgrade process, we will first create a new JSS Next.js Application in a separate working directory: `npx create-sitecore-jss@v21.6.0`. This will prompt the generator questions. Answer the questions the same way that you did for your existing application. For our project, we had the following templates: `nextjs-sxa` `nextjs-multisite`.
+
+![Using the Create Sitecore JSS command](/static/images/blog-content-images/2024-03-04_create-sitecore-jss.png)
+
+## Use a Comparison Tool
+Use a comparison tool to compare the directory and file contents differences between the current and new version JSS Applications. This can be a very mundane task, but it's the most effective way to ensure that your application is receiving the proper updates. Sitecore has continued to push for a more centralized npm package integration instead of placing custom files within the generated application, so there's actually going to be a a decent amount of removals from it that you'll see below.
+
+**Tool used**: Beyond Compare
+**Approach**: Beyond Compare is my comparison tool of choice because of it's powerful directory-level comparison and intuitive UI. I performed a file by file comparison. When you're done with a file comparison and hit save + refresh, the file will disappear from the directory tree when the files are the same. If the file still has differences (likely because you've customized it), you can opt to "ignore" the file within the sessions directory tree!
+
+**Comparison Tips**
+- Worry about file formatting after the fact, otherwise your own workspace/project-level formatting (I'm looking at you prettier) will get in the way and cause the file to be different again. I'll go over re-running prettier in the post-comparison steps below!
+- Beyond Compare creates a comparison session so that you can do the comparison over days without worrying what you've already compared, especially if you're using that handy "ignore" file feature.
+
+![Using Beyond Compare with the ignore file feature](/static/images/blog-content-images/2024-03-04_beyond-compare.png)
+
+## Tracking File Comparison Progress
+Take note of your file comparison progress. As Sitecore noted, become familiar with the Sitecore JSS [changelog](https://github.com/Sitecore/jss/releases) so that when you have questions regarding a change, you can visit the changelog or Sitecore JSS Github release page to find what changed and why. You can also search directly for code in Github to find the update, which can also lead you to the commit / PR.
+
+For example, I've marked the completed progress below of my upgrade from v21.1.6 to v21.6.0 and posted a Wiki of it in Azure DevOps for the team. 
+
+The files below are also either marked as (new), (removed), or left blank if they're just updated to latest changes.
+
+- [x] **root level files**
+  - [x] .npmrc (removed)
+  - [x] tsconfig.json
+  - [x] package.json
+    -  delete /rendering/node_modules and re-run `npm install`
+  - [x] next.config.js
+    - setting public url switched to `jssConfig`
+  - [x] .env.local.tpl
+    - added `SITECORE_SITE_NAME=[VALUE]`, which falls back to `package.json` config `appName` if empty
+  - [x] Remove .babelrc to (re)enable SWC compilation by default [#1483](https://github.com/Sitecore/jss/pull/1483)
+
+<br/>
+
+- [x] **/scripts/**
+  - [x] install-pre-push-hook.ts
+  - [x] generate-config.ts
+    - our project uses `dot-env/flow`, so we kept that instead
+  - [x] scaffold-component.ts (removed)
+  - [x] bootstrap.ts
+  - [x] **templates/**
+    - [x] component-src.ts
+    - [x] component-factory.ts (removed)
+  -   [x] component-manifest.ts (removed)
+  - [x] config/plugins/* (updated)
+  - [x] config/plugins/sxa.ts (new!)
+  - [x] generate-component-builder/* (new! and replaces generate-component-factory)
+
+<br/>
+
+- [x] **/src/**
+  - [x] Bootstrap.tsx (new!)
+  - [x] pages/api/*
+  - [x] pages/404.tsx && 500.tsx && app.tsx
+  - [x] pages/[[...path]].tsx
+  - [x] **lib/**
+    - [x] data-fetcher.ts (removed - moved into JSS package)
+    - [x] dictionary-service-factory.ts
+    - [x] layout-service-factory.ts
+    - [x] config.ts
+    - [x] page-props-factory/*
+      - [x] extract-paths.ts (removed)
+    - [x] sitemap-fetcher/*
+    - [x] site-resolver/*
+    - [x] next-config/* (plugins used to append to next.config.js during build)
+    - [x] middleware/* (plugins used during next.js middleware)
+    - [x] graphql-client-factory/* (new!)
+  - [x] **components/**
+    - [x] Image.tsx && Promo.tsx && RichText.tsx (minor sxa updates)
+
+<br/>
+
+- [x] .vscode/extensions.json
+    - new vscode extension recommendations: DotENV, YAML Language Support by Red Hat
+
+- **Files to fix (commented as "FIX" during comparison)**
+  - [x] scripts\config\plugins\multisite.ts (new graphql client object to swap out)
+
+## Notes on Major File Differences
+It can also be helpful to notify the team of major file differences and structure changes. For v21.6.0, I've noted the following major differences:
+- component-factory implementation changed to component-builder
+    - non-component files (stories, helpers, etc.) should be moved outside of `/src/components` so that they are not registered with the new factory. The new component-factory doesn't currently allow post-bootstrap filtering of files because the factory file is written to the temp folder from within the npm package. Sitecore has this filtering in their JSS backlog.
+- JSS_APP_NAME changed to SITECORE_SITE_NAME
+- GraphQL Layout Service now accepts a ClientRequestFactory object and deprecates the endpoint param
+
+## Tasks After File Comparison
+Once the File Comparison is complete, there's some version upgrade specific changes to check for along with the normal post-file comparison changes. I've listed my steps below for v21.6.0:
+- [x] Move non-component files outside of `src/components` due to the new component-builder not having a filter option to ignore non-component files, such as stories files.
+- [x] delete src/temp folder to get rid of pre-nextjs-build temp files (such as old component-factory file) to help with lint errors
+- [x] run npx prettier to format all files in project due to our prettier settings being different (printWidth, etc.)
+  - To format all TypeScript files within the Next.js app, from the Next.js App directory run `npx prettier --write ./**/*.ts`
+- [x] run `npm run lint` within the Next.js app and resolve all errors
+- [x] restart the VSCode eslint server with ctrl + p "restart eslint"
+- [x] Upgrade the local Docker `NODEJS_VERSION` to `18.13.0` (previously ~v16) and remove the carat `^` from the next.js package.json version (if getting error "Headers is not defined")
+- [x] run the `up.ps1` command for local docker, which will build the rendering service with `npm run start:connected` to generate the local `src/temp/config.js`
+
+## Validate!
+- [x] Check Experience Editor functionality (e.g. field types: general links, etc.)
+- [x] Check rendering host functionality
+- [x] Smile at the SWC compiler performance improvements over Babel!
+
+## Bonus: Storybook
+If you're using Storybook v7, you'll also want to lock down the react and react-dom package versions to the current version used within the application:
+```json
+  "overrides": {
+    "storybook-addon-breakpoints": {
+      "@storybook/components": "7.6.17",
+      "react": "$react",
+      "react-dom": "$react-dom"
+    },
+    "storybook": {
+      "react": "$react",
+      "react-dom": "$react-dom"
+    }
+  },
+```
