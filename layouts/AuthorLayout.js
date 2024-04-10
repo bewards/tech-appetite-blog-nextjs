@@ -1,6 +1,7 @@
 import SocialIcon from '@/components/social-icons'
 import Image from '@/components/Image'
 import { PageSEO } from '@/components/SEO'
+
 export default function AuthorLayout({ children, content }) {
   const { name, avatar, occupation, company, email, twitter, linkedin, github } = content
   return (
@@ -24,6 +25,16 @@ export default function AuthorLayout({ children, content }) {
             <h3 className="pb-2 pt-4 text-2xl font-bold leading-8 tracking-tight">{name}</h3>
             <div className="text-gray-500 dark:text-gray-400">{occupation}</div>
             <div className="text-gray-500 dark:text-gray-400">{company}</div>
+
+            <div className="my-4">
+              <div
+                data-iframe-width="150"
+                data-iframe-height="270"
+                data-share-badge-id="aecfbdec-cf64-48ba-ba84-fa2c395a37c1"
+                data-share-badge-host="https://www.credly.com"
+              ></div>
+            </div>
+
             <div className="flex space-x-3 pt-6">
               <SocialIcon kind="mail" href={`mailto:${email}`} />
               <SocialIcon kind="github" href={github} />
