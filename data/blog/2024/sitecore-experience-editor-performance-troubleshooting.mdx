@@ -68,7 +68,7 @@ I also configured a Solr retry strategy to aid in search and computed index fiel
 	<param desc="minBackoff">00:00:01</param>
 </solrRetryer>
 ```
-<br>
+<br/>
 
 > 504 Gateway Timeout
 
@@ -84,14 +84,14 @@ We noticed through Azure Monitor consistently high CPU Usage (90%+) during the p
 ### Round 2 (Through 4 If I'm Being Honest)
 Now that the long-winded timeouts are removed, we started to see some improvements, but alas most authors were still getting the dreadful "wait" dialog when adding a component or saving the page.
 
-**DB Defragmentation**<br>
+**DB Defragmentation**<br/>
 We worked with the Database Administrator to set a schedule for database defragmentation since we noticed that the databases suffered from great fragmentation, commonly more than 90%+. Clustered indexes were set up for certain table's primary keys, which was were the worse fragmentation was present. The scheduled rebuilds for regular indexes in combination with the clustered index adjustments greatly reduced fragmentation:
 
 ![Sitecore Database Defragmentation](/static/images/blog-content-images/sitecore-database-defragmentation-results.png)
 
 There's plenty of great articles about database fragmentation and clustered indexes, but I found [this article by Mikael Högberg](https://mikael.com/2019/02/defragment-the-sql-server-heap-on-sitecore-databases/) to be the most in-depth and encompassing.
 
-**Sitecore Configuration Adjustments**<br>
+**Sitecore Configuration Adjustments**<br/>
 Increased RequestQueueLimitPerSession from 25 to 100 to account for a larger number of requests being made to the server within a single session. Then change `autoflush` and `useGlobalLock` to false.
 
 ```xml
@@ -119,19 +119,19 @@ Enabled AccessResultCache, disable Counters, and Increase Item Usages Cache:
 </settings>
 ```
 
-**EE Ribbon**<br>
+**EE Ribbon**<br/>
 I noticed through content author HAR files that Sitecore makes a speak request per Ribbon command to check whether the user can execute a command. With over 20 Ribbon commands in the top-toolbar, I was seeing over 25 seconds of blocking time before the page became editable. I decided to restrict read-access to `SXA Site Author` to the following commands in the core database, saving 8+ seconds of "canExecute" time:
 
 ![Sitecore Experience Editor Disable SXA Ribbon Commands](/static/images/blog-content-images/EE-disable-sxa-ribbon-commands.png)
 
 The commands can be found in the Core database located under `/sitecore/content/Applications/WebEdit/Ribbons/WebEdit/Experience Accelerator`.
 
-**Dianoga Upgrade**<br>
+**Dianoga Upgrade**<br/>
 I found that a Dianoga upgrade from v5.0.1 wasn't necessary *at first* to support Sitecore 10.4, but profile traces with PerfView were showing `Dianoga.MediaCacheAsync.OptimizingMediaCache.AddStream` taking upwards of 8 seconds for larger images. 
 
 After reading more into the releases, I settled on upgrading to **v5.4.1** to make sure that the app had the [performance improvements](https://github.com/kamsar/Dianoga/releases/tag/5.3.0) and image compression upgrades (mozjpeg, libwebp, etc.).
 
-**Media Thumbnail Processing**<br>
+**Media Thumbnail Processing**<br/>
 Some authors modified the RTE component by adding an image. When this occurred, they would have to go into the select media dialog and navigate through the content tree under the media library/[SITE]. The expanding of this directory took upwards of 15+ seconds and seemed to stall other users.
 
 Profiling via Kudu Tools on the CM App Service provided insight into the thread timing between the Sitecore Processors, shedding some light into the culprit, `SaveColorProfileProcessor`:
@@ -162,14 +162,14 @@ Dotpeek reveals that this Sitecore processor opens up a memory stream to process
 </configuration>
 ```
 
-**Cumulative Hotfix**<br>
+**Cumulative Hotfix**<br/>
 Sitecore recently provided a cumulative hotfix for v10.4. The release notes mention a fix for MediaRequestHandler ignoring cacheability, so it's best that that gets included in the project.
 
 - 619349	Security enhancement
 - 618639	MediaRequestHandler ignores value of MediaResponse.Cacheability setting
 - 614821	Performance degradation when resolving Standard Values token value for a fallback version of a cloned item
 
-**Media Requests Excluded From Browser Caching**<br>
+**Media Requests Excluded From Browser Caching**<br/>
 Once again looking at the HAR files, I noticed on v9.3 all `/shell/-/media` requests were being cached with `Cache-Control: public`, not only thumbnails and images, but also SXA JavaScript and Stylesheet SXA Theme items. On v10.4, even with the cumulative hotfix applied, we still were seeing `no-cache` for these requests.
 
 Sitecore provides the following setting that would instruct the browser to not cache requests and instead always fetch from the server. Even with the setting set to false, it did not change how the shell site operated:
@@ -220,7 +220,7 @@ public class SetMediaRequestCacheHeaders : ProcessMediaRequestHeadersProcessor
 </configuration>
 ```
 
-**Compiler Upgrade**<br>
+**Compiler Upgrade**<br/>
 Missed during our initial upgrade was an upgrade to the DotNet compiler. With the upgrade to .NET 4.8, we can upgrade to v4.1.0.
 
 Replacement CodeDOM providers that use the new .NET Compiler Platform ("Roslyn") compiler as a service APIs. Even if this doesn't have an effect on EE performance, we can now use new language features and improved compilation performance.
@@ -239,7 +239,7 @@ Replacement CodeDOM providers that use the new .NET Compiler Platform ("Roslyn")
 </system.codedom>
 ```
 
-**Reduce Trace Logging**<br>
+**Reduce Trace Logging**<br/>
 Application Insights telemetry data can make a lot of noise, adding up to your overall performance output, and fill up your storage quick if you're not careful with how the log4net appenders are set up.
 
 To reduce the noise, set the root priority from `INFO` to `WARN` and add in some filters for telemetry data that you don't want to be processed and sent to AI:
@@ -282,12 +282,12 @@ To reduce the noise, set the root priority from `INFO` to `WARN` and add in some
 </sitecore>
 ```
 
-**Blue-Green Caveat**<br>
+**Blue-Green Caveat**<br/>
 If you've implemented Blue-Green strategy and find yourself having a Green CM (App Service Slot), know that the `slot` shares computed resources with the live `production` slot. 
 
 We discovered that the green slot was hogging over 40% CPU at the time of EE Performance Testing. It's recommended to keep the slot on standby until it's needed during deployment. Also make sure to follow Sitecore's guide on [Configuring Multiple CM Instances](https://doc.sitecore.com/xp/en/developers/latest/platform-administration-and-architecture/configure-multiple-content-management-instances.html).
 
-**SQL Testing**<br>
+**SQL Testing**<br/>
 To test SQL performance directly from the CM, I created a SQL Test ASPX page that simply iterates over SQL commands given a # of iterations per command and records the stopwatch elapsed time:
 
 ```csharp
@@ -377,7 +377,7 @@ To test SQL performance directly from the CM, I created a SQL Test ASPX page tha
 </html>
 ```
 
-**PaaS vs IaaS Platform Performance**<br>
+**PaaS vs IaaS Platform Performance**<br/>
 For all the great features within Azure PaaS that can be configured at the switch of a button, we are then reminded of the platform induced pitfalls.
 
 Digging through the traces of the authors saving their pages in EE, 90% of the cumulative time within a process called `HandleZippedIcons` was spent on File exists method in the Azure filesystem:
@@ -390,7 +390,7 @@ This same process looks totally different on a VM where the cost of the same fun
 
 This difference suggests that I/O operations on PaaS are taking more than twice as long compared to a VM of similar compute power.
 
-**Latency Checks**<br>
+**Latency Checks**<br/>
 Our infrastrcture was set up within a Private VNet, but the Azure Blob Storage wasn't configured with NIC to send traffic through the Azure backbone, so there is a certain level of latency to expect from hopping through Azure's Public Network.
 
 Looking closer at Blob storage performance in Azure, the E2E latency of GetBlob averaged 73ms compared to the actual server latency of 17ms during the dated performance testing. An E2E much higher than a Success Server Latency means the time it took Sitecore to send the request and receive the response was held up outside the application:
