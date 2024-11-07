@@ -1,0 +1,54 @@
+---
+title: 'Enable TypeScript checking in your Sitecore Next.js Application'
+date: '2023-04-07'
+summary: TypeScript checking should be a required task in a Sitecore Next.js project
+tags: ['Sitecore JSS', 'Next.js', 'TypeScript']
+draft: false
+images: ['/static/images/blog-thumbnails/sitecore-jss_nextjs.png']
+authors: ['default']
+---
+
+Often times I find myself writing a lot of redundant types of JavaScript animations on different DOM elements throughout my client's websites. In this post, I will share and walk through some code snippets I've built and leveraged to speed up the animation process, reduce the amount of JavaScript required, all while still allowing variations in animation styles when attached to different elements.
+
+## The Bread and Butter
+When I think of website animations, there are three types of animations that come to mind: CSS(3), JavaScript powered animations (ranging from design powered [Lottie] to front-end powered [GSAP]). In this post I will be combining the use of a CSS library, `Animate.css`, and a JavaScript powered library, `GSAP`.
+
+CSS3 animations are powered by animation labels that point to `@keyframes`. The [Animate.css](https://animate.style/) library is exactly that - a lightweight collection of CSS animations created with keyframes assigned to CSS classes:
+
+``` scss
+@keyframes backInLeft {
+  0% {
+    transform: translateX(-2000px) scale(0.7);
+    opacity: 0.7;
+  }
+
+  80% {
+    transform: translateX(0px) scale(0.7);
+    opacity: 0.7;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.backInLeft {
+  animation-name: backInLeft;
+}
+```
+This library can be installed via npm and you can decide which animations you want to import in your website, then simply paste the animation label into the CSS class attribute on a DOM element:
+
+```html
+<h1 class="animate__animated animate__bounce">An animated element that bounces in</h1>
+```
+This works well for instances where the component is first on the page or comes before the fold, but the user may not catch a glimpse of the animation until it's too late. This is where animate on scroll into view comes into play. There are a handful of pure JavaScript libraries that detect viewport detection of elements while observing scroll (examples: AOS, ScrollMagic). I chose GSAP ScrollTrigger for the reasons stated below:
+
+ - ease of start up, documentation, and active community support
+ - flexibility of positioning, such as a start and end triggering system
+ - forward and backward scrubbing of animations
+ - tracking progression of animation
+ - ease of debugging (markers)
+ - no scroll-jacking
+
+By itself, GSAP Animation Library is, in my opinion, the most well documented and community supported JavaScript animation library available. 

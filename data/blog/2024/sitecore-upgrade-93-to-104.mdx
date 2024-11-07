@@ -1,0 +1,456 @@
+---
+title: 'Recapping a Sitecore Upgrade from v9.3 XP to v10.4 XM'
+date: '2024-12-01'
+summary: Perform a Sitecore upgrade from v9.3 to v10.4, including the move to Azure Blob Storage, Publishing Service adjustments, and Experience Editor performance troubleshooting.
+tags: ['Sitecore', 'Sitecore Upgrade']
+draft: true
+images: ['/static/images/blog-thumbnails/500x300_sitecore-performance-series.jpg']
+authors: ['default']
+---
+
+## Summary
+Upgrade Sections
+- Application Code
+	- SXA Search
+
+## Planning the Upgrade
+I decided to split up the upgrade work into two separate Epic buckets, Higher-Level Environment Work and Solution Upgrade Work. Tasks below that have a direct link on them will be discussed in this post.
+
+### Higher-Level Environment Work included the following tasks:
+- Configure ARM template for Sitecore 10.4 XM Topology
+- Configure Friendly URLs & Certs
+- Upgrade Existing v9.3 Databases & Clean Up Content Databases
+- [Migrate Media Items from SQL to Azure Blob Storage](#migrate-media-items-from-sql-to-azure-blob-storage)
+- Upgrade SXA Content
+- CI/CD Build Pipeline
+- CI/CD Release Pipeline
+- Blue-Green Deplyoment
+- [Experience Editor Performance Troubleshooting](#Experience-Editor-Performance-Troubleshooting)
+
+### Solution Upgrade Work included the following tasks:
+- Review Sitecore Upgrade Documentation
+- Track v10.4 README
+- Local Docker Installation
+- Upgrade SXA Theming
+- Serialization
+- Tooling
+- Package References
+- Sitecore Hotfixes
+- Compare Sitecore showconfig.aspx
+- Build and Deploy Upgraded Local Solution
+- Testing: Workflow
+- Testing: Asset Configuration
+- Testing: Accessibility
+- Testing: RTE Customizations and CMS Buttons
+- Testing: Scriban Processors
+- Testing: SXA Theme
+- Upgrade-Related Support Tickets
+
+## Migrate Media Items from SQL to Azure Blob Storage
+Sitecore provides a migration tool (PowerShell scripts) for this step. The tool will copy all media items from the SQL database to Azure Blob Storage. The tool will also update the media item URLs in the Sitecore database to point to the new Azure Blob Storage URLs using the `blob://` format.
+
+Since there were over 500k media items, we decided to run the migration scripts on two separate VM boxes to speed up the process. The second VM was set up so that the SQL query was put in DESC order. The migration still took about 3 days to complete for master *and* web databases, but realistically it could have been done in less than 2 days if you don't run the web database, and instead just delete the blobs from SQL directly and only run the blob format SQL query directly in SSMS for web.
+
+The script does a good job of tracking transaction count to determine when you've reached the halfway point, but you can also check the Azure Blob Storage container in Azure Portal to see the progress of the migration:
+
+![Azure Blob Storage Container](/static/images/blog-content-images/2024-11-05_azure-blob-migration-transaction-metrics.png)
+
+- `GetBlobProperties` API transaction is a good indicator for whether a blob already exists or not. 
+- `PutBlob` API transaction would be a blob write operation, such as writing the blob from Sitecore to storage.
+
+> Tip: If you're migrating blobs for multiple environments, you can use [AzCopy](https://learn.microsoft.com/en-us/azure/storage/common/storage-use-azcopy-blobs-copy) to copy blobs from one container to another. This can drastically decrease the time it takes to migrate blobs, since the script first checks if the blob already exists, especially if half of the Blobs were already existing from a lower  environment (e.g., Test to Prod).
+
+### SQL Queries To Check Blob Migration Status
+SQL Queries can also be helpful to check the status of media items throughout the migration process. Here are a few examples:
+
+**Get Media Item Blob Field Value by Media Item Name**
+```sql
+-- Find a single media item's media field value by item name
+SELECT * FROM [dbo].[Items] i
+	LEFT JOIN
+(
+    SELECT [ItemId], [Value]
+    FROM dbo.SharedFields 
+    WHERE [Value] != '' AND (FieldId='{40E50ED9-BA07-4702-992E-A912738D32DC}' OR FieldId='{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')
+) sf
+ON i.[ID] = sf.[ItemId]
+where i.[Name] = 'gratisography-funflower-800x525'
+```
+
+**Get Counts of Blob Field Values from SharedFields, VersionedFields, UnversionedFields, and ArchivedFields Types**
+```sql
+--SQL QUERIES FOR BLOB VALUE COUNTS COMPARED AGAINST AZURE BLOB (BLOB://) VALUE COUNTS
+
+--SELECT * FROM dbo.SharedFields With (NOLOCK)
+SELECT COUNT(1) AS 'Value','NonBlobValueTotalSharedFields' as Title FROM dbo.SharedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')) 
+	AND (TRY_CONVERT(UNIQUEIDENTIFIER, [Value]) IS NOT NULL) AND VALUE NOT LIKE 'blob%'
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'BlobValueTotalSharedFields' as Title FROM dbo.SharedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')) 
+	AND VALUE LIKE 'blob%'
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'TotalSharedFields' as Title FROM dbo.SharedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}'))
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'NonBlobValueTotalVersionedFields' as Title FROM dbo.VersionedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')) 
+	AND (TRY_CONVERT(UNIQUEIDENTIFIER, [Value]) IS NOT NULL) AND VALUE NOT LIKE 'blob%'
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'BlobValueTotalVersionedFields' as Title FROM dbo.VersionedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')) 
+	AND VALUE LIKE 'blob%'
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'TotalVersionedFields' as Title FROM dbo.VersionedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}'))
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'NonBlobValueTotalUnversionedFields' as Title FROM dbo.UnversionedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')) 
+	AND (TRY_CONVERT(UNIQUEIDENTIFIER, [Value]) IS NOT NULL) AND VALUE NOT LIKE 'blob%'
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'BlobValueTotalUnversionedFields' as Title FROM dbo.UnversionedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')) 
+	AND VALUE LIKE 'blob%'
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'TotalUnversionedFields' as Title FROM dbo.UnversionedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}'))
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'NonBlobValueTotalArchivedFields' as Title FROM dbo.ArchivedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')) 
+	AND (TRY_CONVERT(UNIQUEIDENTIFIER, [Value]) IS NOT NULL) AND VALUE NOT LIKE 'blob%'
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'BlobValueTotalArchivedFields' as Title FROM dbo.ArchivedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}')) 
+	AND VALUE LIKE 'blob%'
+--UNION ALL
+
+SELECT COUNT(1) AS 'Value', 'TotalArchivedFields' as Title FROM dbo.ArchivedFields With (NOLOCK)
+WHERE FieldId IN (
+('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
+('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}'))
+```
+
+## Experience Editor Performance Troubleshooting
+The 9.3 IaaS environment had gone through significant rounds of performance tuning adjustments already, including optimizations such as:
+- Data, Paths, and Item cache increases
+- Disabled content testing
+- ContentEditor.RenderCollapsedSections set to false
+- Disable Suggested Tests in ribbon
+- Disable Datasource usages count
+- Disable Show Number of Locked Items
+
+Baseline tests performed by 20+ content authors was posing as a risk to outperform. The tests performed measured stopwatch times for tasks such as add page reload, hard-cache page reload, add component with datasource, and modify component.
+
+#### Round 1
+The 1st round of performance testing on 10.4 was steam rolled by timeouts for even non-complex tests, such as pages with minimal componentry and simple page reloads.
+
+To get to the root cause, I enabled the `DependencyTrackingTelemetryModule` within applicationinsights.config to see end-to-end transactions in Application Insights.
+
+*Add the exclude for HttpHeaders below due to the App Gateway stripping out the authentication header*
+```xml
+<TelemetryModules>
+    <Add Type="Microsoft.ApplicationInsights.DependencyCollector.DependencyTrackingTelemetryModule, Microsoft.AI.DependencyCollector">
+        <ExcludeComponentCorrelationHttpHeadersOnDomains>
+            <Add>core.windows.net</Add>
+            <Add>core.chinacloudapi.cn</Add>
+            <Add>core.cloudapi.de</Add>
+            <Add>core.usgovcloudapi.net</Add>
+            <Add>localhost</Add>
+            <Add>127.0.0.1</Add>
+        </ExcludeComponentCorrelationHttpHeadersOnDomains>
+    </Add>
+</TelemetryModules>
+```
+
+After the module is deployed, the E2E dependency telemetry data started to appear in Azure. Navigate to Application Insights > Performance > Select an operation to investigate:
+
+| ![Azure Application Insights E2E Dependency Telemetry Data](/static/images/blog-content-images/2024-11-07_e2e-transaction-azure-media-request.png) | 
+|:--:| 
+| *Azure Application Insights showing E2E transaction details for a Sitecore Media Request operation. Notice the time taken within SQL is trivial.* |
+
+**Resolving Timeouts**
+> SOLR URI error - HttpParser - URI is too large > 8192 - SOLR
+
+Solr Queries were appending security item read access checks for every role (and inherited role), so the GET Query sent to Solr was too long. Sitecore does have a config setting for switching calls to POST, but we were hesitant to make that switch. Instead, hop onto the Solr Cloud VM into ZooKeeper and increase the `headerBufferSize`. Increasing the buffer size solved the initial timeout issues, but note that it's not a scalable solution as much as linear, so we could run into this issue again if too many roles are added.
+
+I also configured a Solr retry strategy to aid in search and computed index field timeouts, since we were also seeing some index document failures that shouldn't normally fail, potentially as a result of network latency:
+```xml
+<!-- Configure the Solr retry strategy
+	https://doc.sitecore.com/xp/en/developers/104/platform-administration-and-architecture/configure-the-solr-retry-strategy.html#enable-a-retryer-strategy 
+	-->
+<solrRetryer type="Sitecore.ContentSearch.SolrProvider.Availability.Retryer.ExponentialRetryer, Sitecore.ContentSearch.SolrProvider" singleInstance="true" patch:instead="*[@type='Sitecore.ContentSearch.SolrProvider.Availability.Retryer.NoRetryRetryer, Sitecore.ContentSearch.SolrProvider']">
+	<param desc="retryCount">3</param>
+	<param desc="deltaBackoff">00:00:01</param>
+	<param desc="maxBackoff">00:00:05</param>
+	<param desc="minBackoff">00:00:01</param>
+</solrRetryer>
+```
+<br>
+
+> 504 Gateway Timeout
+
+Simply increased the timeout (previously 20 seconds) to 120 seconds to match existing Load Balancers.
+
+**Scaling**
+We noticed through Azure Monitor consistently high CPU Usage (90%+), so we increased CPU size from 4 to 8 - P2V3 to P3V3.
+
+| ![Azure App Service CPU Pegged](/static/images/blog-content-images/azure-monitoring-cpu-pegged.png) | 
+|:--:| 
+| *Azure Monitor showing CPU Percentage metric, along with other App Service Plan Metrics* |
+
+#### Round 2
+Now that the long-winded timeouts are removed, we started to see some improvements, but alas most authors were still getting the dreadful "wait" dialog when adding a component or saving the page.
+
+**DB Defragmentation**<br>
+We worked with the Database Administrator to set a schedule for database defragmentation since we noticed that the databases suffered from great fragmentation, commonly more than 90%+. Clustered indexes were set up for certain tables primary keys were the worse fragmentation was present. The scheduled rebuilds for regular indexes in combination with the clustered index adjustments greatly reduced fragmentation:
+
+![Sitecore Database Defragmentation](/static/images/blog-content-images/sitecore-database-defragmentation-results.png)
+
+**Sitecore Configuration Adjustments**
+
+Increased RequestQueueLimitPerSession from 25 to 100 to account for a larger number of requests being made to the server within a single session. Then change `autoflush` and `useGlobalLock` to false.
+
+```xml
+<!-- Web.config: Throttle concurrent requests per session specifies how many requests with same Session ID are allowed to be executed simultaneously. -->
+<add key="aspnet:RequestQueueLimitPerSession" value="100" />
+
+<!-- Prevent log entries from blocking any operations, even minimally -->
+<system.diagnostics>
+	<trace autoflush="false" useGlobalLock="false" indentsize="0">
+		...
+	</trace>
+</system.diagnostics>
+```
+
+Enabled AccessResultCache, disable Counters, and Increase Item Usages Cache:
+```xml
+<!-- Patch config: Disable Settings for CM Only -->
+<settings role:require="Standalone OR ContentManagement">
+	<setting name="Caching.CacheKeyIndexingEnabled.AccessResultCache" value="true" />
+	<setting name="Counters.Enabled" value="false"/>
+
+	<setting name="WebEdit.ItemUsagesCacheSize">
+	<patch:attribute name="value">100MB</patch:attribute>        
+	</setting>
+</settings>
+```
+
+**EE Ribbon**<br>
+I noticed through content author HAR files that Sitecore makes a speak request per Ribbon command to check whether the user can execute a command. With over 20 Ribbon commands in the top-toolbar, I was seeing over 25 seconds of blocking time before the page became editable. I decided to restrict read-access to `SXA Site Author` to the following commands in the core database, saving 8+ seconds of "canExecute" time:
+
+![Sitecore Experience Editor Disable SXA Ribbon Commands](/static/images/blog-content-images/EE-disable-sxa-ribbon-commands.png)
+
+The commands can be found in the Core database located under `/sitecore/content/Applications/WebEdit/Ribbons/WebEdit/Experience Accelerator`.
+
+**Dianoga Upgrade**<br>
+I found that a Dianoga upgrade from v5.0.1 wasn't necessary *at first* to support Sitecore 10.4, but profile traces with perfView were showing `Dianoga.MediaCacheAsync.OptimizingMediaCache.AddStream` taking upwards of 8 seconds for larger images. 
+
+After reading more into the releases, I settled on upgrading to **v5.4.1** to make sure that the app had the [performance improvements](https://github.com/kamsar/Dianoga/releases/tag/5.3.0) and image compression upgrades (mozjpeg, libwebp, etc.).
+
+**Media Thumbnail Processing**<br>
+Some authors modified the RTE component by adding an image. When this occured, they would have to go into the select media dialog and navigate through the content tree under the media library/[SITE]. The expanding of this directory took upwards of 15+ seconds and seemed to stall other users.
+
+Profiling via Kudu Tools on the CM App Service provided insight into the thread timing between the Sitecore Processors, shedding some light into the culprit, `SaveColorProfileProcessor`:
+
+![perfView trace showing w3wp Sitecore processors](/static/images/blog-content-images/perfview-save-color-profile-processor-thread.png)
+
+Dotpeek reveals that this Sitecore processor opens up a memory stream to process the image and save an args property, `ColorProfile`. This property doesn't seem to be used elsewhere in-between the getMediaStream processors, unless you're using Sitecore DAM, so I assume it's safe to remove for XM, with the following patch:
+
+```xml
+<!--
+	Remove ColorProfile processors to reduce media stream threads and duration of processing tree-view thumbnails
+-->
+<configuration xmlns:patch="http://www.sitecore.net/xmlconfig/" xmlns:set="http://www.sitecore.net/xmlconfig/set/">
+  <sitecore>
+    <pipelines>
+      <getMediaStream>
+        <processor type="Sitecore.Resources.Media.SaveColorProfileProcessor, Sitecore.Kernel" resolve="true">
+          <patch:delete />
+        </processor>
+        <processor type="Sitecore.Resources.Media.RestoreColorProfileProcessor, Sitecore.Kernel">
+          <patch:delete />
+        </processor>
+      </getMediaStream>
+    </pipelines>
+  </sitecore>
+</configuration>
+```
+
+**Cumulative Hotfix**<br>
+Sitecore recently provided a cumulative hotfix for v10.4. The release notes mention a fix for MediaRequestHandler ignoring cacheability, so it's best that that gets included in the project.
+
+- 619349	Security enhancement
+- 618639	MediaRequestHandler ignores value of MediaResponse.Cacheability setting
+- 614821	Performance degradation when resolving Standard Values token value for a fallback version of a cloned item
+
+**Media Requests Excluded From Browser Caching**<br>
+Once again looking at the HAR files, I noticed on v9.3 all `/shell/-/media` requests were being cached with `Cache-Control: public`, not only thumbnails and images, but also SXA JavaScript and Stylesheet theme items. On v10.4, even with the cumulative hotfix applied, we still were seeing `no-cache` for these requests.
+
+Sitecore provides the following setting that would instruct the browser to not cache requests and instead always fetch from the server. Even with the setting set to false, it did not change how the shell site operated:
+
+```xml
+<setting name="DisableBrowserCaching" value="false" />
+```
+
+Sitecore also provides a setting for enabling media cache, but this setting just acts as a flag for whether or not Sitecore should cache media items and place them into the media cache directory server-side:
+
+```xml
+<setting name="Media.CachingEnabled" value="true" />
+```
+
+To resolve this discrepancy, I ended up added a new processor, `SetMediaRequestCacheHeaders`, that overrides the previously set cache-control to `private` when media requests come from shell:
+
+```csharp
+/*
+	* Override the previously set cache-control to "private" from no-cache, no-store when media request comes from shell (EE, CE)
+	*/
+public class SetMediaRequestCacheHeaders : ProcessMediaRequestHeadersProcessor
+{
+	public override void Process(MediaRequestHeadersArgs args)
+	{
+		if (args?.Context?.Response?.Cache == null)
+			return;
+		var request = args.Context.Request;
+		if (request == null || !args.Context.Request.Url.AbsolutePath.Contains("sitecore/shell"))
+			return;
+		var cache = args.Context.Response.Cache;
+		var noStoreFieldInfo = cache.GetType().GetField("_noStore", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+		var cacheabilityFieldInfo = cache.GetType().GetField("_cacheability", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+		noStoreFieldInfo.SetValue(cache, false);
+		cacheabilityFieldInfo.SetValue(cache, HttpCacheability.Public);
+	}
+}
+```
+
+```xml
+<configuration xmlns:patch="http://www.sitecore.net/xmlconfig/">
+  <sitecore>
+    <pipelines>
+      <mediaRequestHeaders>
+        <processor type="Project.Sitecore.Processors.SetMediaRequestCacheHeaders, Project.Sitecore"/>
+      </mediaRequestHeaders>
+    </pipelines>
+  </sitecore>
+</configuration>
+```
+
+**Compiler Upgrade**<br>
+Missed during our initial upgrade was an upgrade to the DotNet compiler. With the upgrade to .NET 4.8, we are able to upgrade to v4.1.0.
+
+Replacement CodeDOM providers that use the new .NET Compiler Platform ("Roslyn") compiler as a service APIs. Even if this doesn't have an affect on EE performance, we can now use new language features and improved compilation performance.
+
+```xml
+<package id="Microsoft.CodeDom.Providers.DotNetCompilerPlatform" version="4.1.0" targetFramework="net48" />
+```
+
+```xml
+<!-- Web.config: add required compiler references -->
+<system.codedom>
+	<compilers>
+		<compiler language="c#;cs;csharp" extension=".cs" type="Microsoft.CodeDom.Providers.DotNetCompilerPlatform.CSharpCodeProvider, Microsoft.CodeDom.Providers.DotNetCompilerPlatform, Version=4.1.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35" warningLevel="4" compilerOptions="/langversion:default /nowarn:1659;1699;1701" />
+		<compiler language="vb;vbs;visualbasic;vbscript" extension=".vb" type="Microsoft.CodeDom.Providers.DotNetCompilerPlatform.VBCodeProvider, Microsoft.CodeDom.Providers.DotNetCompilerPlatform, Version=4.1.0.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35" warningLevel="4" compilerOptions="/langversion:default /nowarn:41008 /define:_MYTYPE=\&quot;Web\&quot; /optionInfer+" />
+	</compilers>
+</system.codedom>
+```
+
+**Reduce Trace Logging**<br>
+Application Insights telemetry data can make a lot of noise, adding up to your overall performance output, and fill up your storage quick if you're not careful with how the log4net appenders are set up.
+
+To reduce the noise, set the root priority from `INFO` to `WARN` and add in some filters for telemetry data that you don't want to be processed and sent to AI:
+
+```xml
+<sitecore>
+	<log4net>
+		<root>
+		<priority>
+			<patch:attribute name="value">WARN</patch:attribute>
+		</priority>
+		</root>
+	</log4net>
+	<appender name="LogFileAppender" type="log4net.Appender.RollingFileAppender, Sitecore.Logging">
+		<filter type="log4net.Filter.StringMatchFilter" desc="filter1">
+			<stringToMatch value="Start processing HTTP request GET" />
+			<acceptOnMatch value="false" />
+		</filter>
+		<filter type="log4net.Filter.StringMatchFilter" desc="filter1A">
+			<stringToMatch value="Start processing HTTP request POST" />
+			<acceptOnMatch value="false" />
+		</filter>
+		<filter type="log4net.Filter.StringMatchFilter" desc="filter2">
+			<stringToMatch value="Sending HTTP request GET" />
+			<acceptOnMatch value="false" />
+		</filter>
+		<filter type="log4net.Filter.StringMatchFilter" desc="filter2A">
+			<stringToMatch value="Sending HTTP request POST" />
+			<acceptOnMatch value="false" />
+		</filter>
+		<filter type="log4net.Filter.StringMatchFilter" desc="filter3">
+			<stringToMatch value="Received HTTP response after" />
+			<acceptOnMatch value="false" />
+		</filter>
+		<filter type="log4net.Filter.StringMatchFilter" desc="filter4">
+			<stringToMatch value="End processing HTTP request after" />
+			<acceptOnMatch value="false" />
+		</filter>
+	</appender>
+</sitecore>
+```
+
+**Blue-Green Caveat**<br>
+If you've implemented Blue-Green strategy and find yourself having a Green CM (App Service Slot), know that the `slot` shares computed resources with the live `production` slot. 
+
+We discovered that the green slot was hogging over 40% CPU at the time of EE Performance Testing. It's recommended to keep the slot on standby until it's needed during deployment. Also make sure to follow Sitecore's guide on [Configuring Multiple CM Instances](https://doc.sitecore.com/xp/en/developers/latest/platform-administration-and-architecture/configure-multiple-content-management-instances.html).
+
+**PaaS vs IaaS Platform Performance**<br>
+For all of the great features within Azure PaaS that can be configured at the switch of a button, we are then reminded of the platform induced pitfalls.
+
+Digging through the traces of the authors saving their pages in EE, 90% of the cumulative time within a process called `HandleZippedIcons` was spent on File exists method in the Azure filesystem:
+
+![Azure PaaS File Exists I/O Thread Timing Performance](/static/images/blog-content-images/azure-paas-file-exists-thread-timing.png)
+
+This same process looks totally different on a VM where cost of the same function is only about 35%:
+
+![Azure IaaS File Exists I/O Thread Timing Performance](/static/images/blog-content-images/azure-iaas-file-exists-thread-timing.png)
+
+This difference suggests that I/O operations on PaaS are taking more than twice as long compared to a VM of similar compute power.
+
+**Latency Checks**<br>
+Our infrastrcture was set up within a Private VNet, but the Azure Blob Storage wasn't configured with NIC to send traffic through the Azure backbone, so there is a certain level of latency to expect from hopping through Azure's Public Network.
+
+Looking closer at Blob storage performance in Azure, the E2E latency of GetBlob averaged 73ms compared to the actual server latency of 17ms during the dated performance testing. An E2E much higher than a Success Server Latency means the time it took Sitecore to send the request and receive the response was held up outside the application:
+
+![Azure Blob Storage Latency Chart Showing Slower E2E Latency](/static/images/blog-content-images/2024-11-06_blob-storage-latency-performance-chart.png)
+
+Once the Network was configured for blob stoarage, I started noticing a visible difference of ~200ms on thumbnail media requests when expanding the media library.
