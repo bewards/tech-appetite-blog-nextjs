@@ -66,9 +66,9 @@ Looking at the network tab, we can see the GET request to populate the variant s
 }
 ```
 
-At this point, I could have de-compiled the Sitecore pipeline, `getVariants`, that generates the returned variants list above, but the response seemed proper enough to start looking elsewhere. My instincts were telling me that there's some client-side code or SPEAK code that is improperly handling which variant is chosed as the selected label.
+At this point, I could have de-compiled the Sitecore pipeline, `getVariants`, that generates the returned variants list above, but the response seemed proper enough to start looking elsewhere. My instincts were telling me that there's some client-side code or SPEAK code that is improperly handling which variant is chosen as the selected label.
 
-Next up was looking at the presentation details final layout differences before and after the variant was switched to a different variant and saved. Here we can see very minimal differences within the parameters `FieldNames` key, where the encoded characters switch from lowercase to uppercase:
+Let's head over to looking at the presentation details. In the final layout differences before and after the variant was switched to a different variant and saved we can see very minimal differences within the parameters `FieldNames` key, where the encoded characters switch from lowercase to uppercase:
 
 ![Sitecore SXA variant switcher rendering parameter data differences](/static/images/blog-content-images/2024-11-13_sxa-rendering-variant-switcher-field-param-value-differences.png)
 
