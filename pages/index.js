@@ -6,6 +6,8 @@ import { formatDate } from 'pliny/utils/formatDate'
 import { sortedBlogPost, allCoreContent } from 'pliny/utils/contentlayer'
 import { NewsletterForm } from 'pliny/ui/NewsletterForm'
 import { allBlogs } from 'contentlayer/generated'
+import Image from 'next/image'
+
 const MAX_DISPLAY = 5
 export const getStaticProps = async () => {
   const sortedPosts = sortedBlogPost(allBlogs)
@@ -17,6 +19,16 @@ export const getStaticProps = async () => {
   }
 }
 export default function Home({ posts }) {
+  // retrieves images from the post frontmatter and returns them in the format required by Google's Structured Data
+  const getFeaturedImages = (imagesArr) => {
+    return imagesArr.map((img) => {
+      return {
+        '@type': 'ImageObject',
+        url: img.includes('http') ? img : siteMetadata.siteUrl + img,
+      }
+    })
+  }
+
   return (
     <>
       <PageSEO title={siteMetadata.title} description={siteMetadata.description} />
@@ -36,14 +48,23 @@ export default function Home({ posts }) {
             return (
               <li key={slug} className="py-12">
                 <article>
-                  <div className="space-y-2 xl:grid xl:grid-cols-4 xl:items-baseline xl:space-y-0">
-                    <dl>
+                  <div className="space-y-2 lg:grid lg:grid-cols-4 lg:items-baseline lg:space-y-0">
+                    <dl className="image-side lg:h-full">
                       <dt className="sr-only">Published on</dt>
                       <dd className="text-base font-medium leading-6 text-gray-500 dark:text-gray-400">
                         <time dateTime={date}>{formatDate(date, siteMetadata.locale)}</time>
                       </dd>
+                      <div className="relative mt-2 max-md:hidden lg:h-full">
+                        <Image
+                          src={getFeaturedImages(post.images)[0].url}
+                          alt={''}
+                          fill={true}
+                          className="rounded-lg"
+                          style={{ maxHeight: 'max-content' }}
+                        />
+                      </div>
                     </dl>
-                    <div className="space-y-5 xl:col-span-3">
+                    <div className="space-y-5 lg:col-span-3 lg:pl-4">
                       <div className="space-y-6">
                         <div>
                           <h2 className="text-2xl font-bold leading-8 tracking-tight">

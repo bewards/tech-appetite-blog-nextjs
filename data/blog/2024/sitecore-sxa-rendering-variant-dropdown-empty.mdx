@@ -76,7 +76,9 @@ By manually updating some other variants that had an empty dropdown switcher lab
 
 To fix this issue without having to create and run a PowerShell script to update 500k+ pages rendering definitions, I was able to find the client-side JavaScript. The variant switcher JavaScript actually is compiled from the SXA Variants Base Theme, located under `/sitecore/media library/Base Themes/Variants/Scripts/variantswitcher`.
 
-Downloading the theme item's Media and inspecting the JavaScript file, we can see that the logic to generate the "current variant" (`currentVariant`) does a RegEx match for specifically uppercase `%7B.*?%7D`, then proceeds to check if the `FieldNames` value contains `%7B` (again, uppercase). Not very backwards compatible are we 🥲
+Downloading the theme item's Media and inspecting the JavaScript file, we can see that the logic to generate the "current variant" (`currentVariant`) does a RegEx match for specifically uppercase `%7B.*?%7D`, then proceeds to check if the `FieldNames` value contains `%7B` (again, uppercase). 
+
+Not very backwards compatible are we 🥲
 
 ## The Fix
 

@@ -82,4 +82,8 @@ const siteMetadata = {
   // },
 }
 
+if (process.env.NODE_ENV === 'development') {
+  siteMetadata.siteUrl = ''
+}
+
 module.exports = siteMetadata
