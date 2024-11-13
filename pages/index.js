@@ -24,7 +24,7 @@ export default function Home({ posts }) {
     return imagesArr.map((img) => {
       return {
         '@type': 'ImageObject',
-        url: img.includes('http') ? img : siteMetadata.siteUrl + img,
+        url: img,
       }
     })
   }
