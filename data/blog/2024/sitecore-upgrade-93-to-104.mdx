@@ -1,10 +1,10 @@
 ---
 title: 'Recapping a Sitecore Upgrade from v9.3 XP to v10.4 XM'
 date: '2024-12-01'
-summary: Perform a Sitecore upgrade from v9.3 to v10.4, including the move to Azure Blob Storage, Publishing Service adjustments, and Experience Editor performance troubleshooting.
+summary: Perform a Sitecore upgrade from v9.3 to v10.4, including the move to Azure Blob Storage, Publishing Service adjustments, and TODO.
 tags: ['Sitecore', 'Sitecore Upgrade']
 draft: true
-images: ['/static/images/blog-thumbnails/500x300_sitecore-performance-series.jpg']
+images: ['/static/images/blog-thumbnails/500x300_sitecore-upgrade.png']
 authors: ['default']
 ---
 
@@ -25,7 +25,6 @@ I decided to split up the upgrade work into two separate Epic buckets, Higher-Le
 - CI/CD Build Pipeline
 - CI/CD Release Pipeline
 - Blue-Green Deplyoment
-- [Experience Editor Performance Troubleshooting](#Experience-Editor-Performance-Troubleshooting)
 
 ### Solution Upgrade Work included the following tasks:
 - Review Sitecore Upgrade Documentation
@@ -161,3 +160,12 @@ WHERE FieldId IN (
 ('{40E50ED9-BA07-4702-992E-A912738D32DC}'),
 ('{DBBE7D99-1388-4357-BB34-AD71EDF18ED3}'))
 ```
+
+## Upgrade SXA Theming
+Our project contained signficant customizations to the SXA Theme JavaScript files, including BaseTheme and Components Theme. Since we serialized these changes, it was easy to see a higher-level view of file changes:
+
+![Sitecore SXA Base Theme Serialized with TDS](/static/images/blog-content-images/2024-11-12_104-upgrade-sxa-base-themes-tds.png)
+
+The only way to resolve the differences and get the latest from Sitecore is by downloading a vanilla copy of the 10.4 SXA Themes from the media library and doing a file comparison between your version and the newer version. I decided to compare and move our 9.3 changes into the newer 10.4 version.
+
+In the BaseTheme, we had unused typeahead functionality in the SXA `SearchBoxModel`, and Sitecore replaced typeahead with autocomplete. We were seeing console errors on some SXA search pages regarding *autoComplete is not defined*.

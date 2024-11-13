@@ -1,0 +1,104 @@
+---
+title: 'Why is my Sitecore SXA Rendering Variant Dropdown Label Blank in Experience Editor'
+date: '2024-11-13'
+summary: Find out why the Sitecore SXA rendering variant dropdown toggler's current variant Label is empty in Experience Editor.
+tags: ['Sitecore', 'Sitecore SXA']
+draft: false
+images: ['/static/images/blog-thumbnails/500x300_sitecore-sxa.png']
+authors: ['default']
+---
+
+SXA Rendering Variants are a building-block feature in Sitecore Experience Accelerator (SXA) that allow content authors to switch between different presentations of a component. They are important because they provide flexibility and efficiency in content presentation, enabling rapid changes to the look and feel of components directly within the Experience Editor. This empowers marketers and content editors to tailor the user experience dynamically, ensuring that the content is displayed in the most effective way for different contexts and audiences.
+
+## The Issue
+The OOTB SXA Title component comes with a "Default" Rendering Variant, as do most variants. We went ahead and updated more rendering variants, H1 - H6, using scriban, and decided that we no longer needed the default variant.
+
+After deleting the default variant and deploying to our Test environment, I noticed on a page in Experience Editor that the rendering variant dropdown switcher Label was empty:
+
+![Sitecore SXA rendering variant switcher selected display value empty](/static/images/blog-content-images/2024-11-13_sxa-rendering-variant-dropdown-empty.png)
+
+![Why are you the way that you are, Sitecore?](https://i.giphy.com/media/v1.Y2lkPTc5MGI3NjExZWNmbjVtd3RsdjQ3YzA0cHh5eXBrbWcxbmVtdDI3aWt5NzNvc29jdiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/O1oJ840fg6uOVCqdzJ/giphy.gif)
+
+If I opened the dropdown and selected a different rendering variant, saved the page, and viewed the variant dropdown again, the selected label now appears. Also noted that the Control Properties dialog for the component actually shows the correct "H3" value in the Variant field under the SXA Styling tab:
+
+![Sitecore SXA Variant field in Control Properties not empty](/static/images/blog-content-images/2024-11-13_sxa-variant-rendering-param-not-empty.png)
+
+Looking at the network tab, we can see the GET request to populate the variant switcher dropdown as `/sxa/switcher/available/E7BA6D8C9C9747E9BC76958A61B112DA/069286AC9DBA454F9C1FED990DE73C85?sc_site=SITE`, and the response looks clean with no indication of malformed variants:
+
+```JSON
+{
+    "variants": [
+        {
+            "ID": "{E47B1BB2-F948-46E8-A6A0-9D70C259AF7C}",
+            "Name": "H2",
+            "DisplayName": "H2",
+            "Thumbnail": ""
+        },
+        {
+            "ID": "{5D17F3C8-E914-4693-BB39-5DE99B8D7BE3}",
+            "Name": "H3",
+            "DisplayName": "H3",
+            "Thumbnail": ""
+        },
+        {
+            "ID": "{FDCA95AD-5AED-4371-A6A9-23B48C056D10}",
+            "Name": "H4",
+            "DisplayName": "H4",
+            "Thumbnail": ""
+        },
+        {
+            "ID": "{D884343A-4B2B-4277-8C92-B2337E98B1E6}",
+            "Name": "H5",
+            "DisplayName": "H5",
+            "Thumbnail": ""
+        },
+        {
+            "ID": "{941C72B3-30D1-419A-887B-1B2B0714B95F}",
+            "Name": "H6",
+            "DisplayName": "H6",
+            "Thumbnail": ""
+        }
+    ],
+    "translations": {
+        "VariantSelectorHeaderTitle": "Variant",
+        "VariantSelectorDropdownText": "Select component variant"
+    }
+}
+```
+
+At this point, I could have de-compiled the Sitecore pipeline, `getVariants`, that generates the returned variants list above, but the response seemed proper enough to start looking elsewhere. My instincts were telling me that there's some client-side code or SPEAK code that is improperly handling which variant is chosed as the selected label.
+
+Next up was looking at the presentation details final layout differences before and after the variant was switched to a different variant and saved. Here we can see very minimal differences within the parameters `FieldNames` key, where the encoded characters switch from lowercase to uppercase:
+
+![Sitecore SXA variant switcher rendering parameter data differences](/static/images/blog-content-images/2024-11-13_sxa-rendering-variant-switcher-field-param-value-differences.png)
+
+By manually updating some other variants that had an empty dropdown switcher label, I was able to confirm that small change to uppercase fixed the issue. As it turns out, the pre-existing content was from a Sitecore v9.3 instance, where apparently the variant IDs are encoded as lowercase.
+
+To fix this issue without having to create and run a PowerShell script to update 500k+ pages rendering definitions, I was able to find the client-side JavaScript. The variant switcher JavaScript actually is compiled from the SXA Variants Base Theme, located under `/sitecore/media library/Base Themes/Variants/Scripts/variantswitcher`.
+
+Downloading the theme item's Media and inspecting the JavaScript file, we can see that the logic to generate the "current variant" (`currentVariant`) does a RegEx match for specifically uppercase `%7B.*?%7D`, then proceeds to check if the `FieldNames` value contains `%7B` (again, uppercase). Not very backwards compatible are we 🥲
+
+## The Fix
+
+I put a quick fix in place to ensure that the match includes what gets generated by v9.3 and v10.4:
+
+```JavaScript
+// variantswitcher.js - line 121
+
+// BUGFIX: variant IDs from 9.3 were set as lowercase, set match to case-insensitive with /i
+currentVariant = rendering["@par"] ? rendering["@par"].match(/(FieldNames=)({.*?}|%7B.*?%7D)/i) : "";
+if (currentVariant != null && currentVariant.length === 3) {
+	currentVariant = currentVariant[2];
+
+	// BUGFIX: variant IDs from 9.3 were set as lowercase, so uppercase them first
+	if (currentVariant.toUpperCase().indexOf("%7B") === 0) {
+		currentVariant = decodeURIComponent(currentVariant);
+	}
+} else {
+	currentVariant = "";
+}
+```
+
+**And Voila!** Uploading the updated file to the variantswitcher media item, reloading Experience Editor, and now all of the Component's variant switcher labels appear again!
+
+> Serialized with TDS / SCS and deployed as IAR ;)
