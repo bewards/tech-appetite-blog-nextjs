@@ -1,5 +1,5 @@
 ---
-title: 'Why is my Sitecore SXA Rendering Variant Dropdown Label Blank in Experience Editor'
+title: 'The Case of the Empty Rendering Variant Switcher Label in Experience Editor'
 date: '2024-11-13'
 summary: Find out why the Sitecore SXA rendering variant dropdown toggler's current variant Label is empty in Experience Editor.
 tags: ['Sitecore', 'Sitecore SXA']
@@ -10,10 +10,10 @@ authors: ['default']
 
 SXA Rendering Variants are a building-block feature in Sitecore Experience Accelerator (SXA) that allow content authors to switch between different presentations of a component. They are important because they provide flexibility and efficiency in content presentation, enabling rapid changes to the look and feel of components directly within the Experience Editor. This empowers marketers and content editors to tailor the user experience dynamically, ensuring that the content is displayed in the most effective way for different contexts and audiences.
 
-## The Issue
-The OOTB SXA Title component comes with a "Default" Rendering Variant, as do most variants. We went ahead and updated more rendering variants, H1 - H6, using scriban, and decided that we no longer needed the default variant.
+> TLDR: Pages upgraded from an older version of SXA are not accounted for in the SXA Variant Switcher JavaScript, resulting in the variant switcher dropdown being blank in Experience Editor.
 
-After deleting the default variant and deploying to our Test environment, I noticed on a page in Experience Editor that the rendering variant dropdown switcher Label was empty:
+## The Issue
+The OOTB SXA Title component comes with a "Default" Rendering Variant, as do most variants. We went ahead and updated more rendering variants, H1 - H6, using scriban, and decided that we no longer needed the default variant. After deleting the default variant and deploying to our Test environment, I noticed on a page in Experience Editor that the rendering variant dropdown switcher Label was empty:
 
 ![Sitecore SXA rendering variant switcher selected display value empty](/static/images/blog-content-images/2024-11-13_sxa-rendering-variant-dropdown-empty.png)
 
