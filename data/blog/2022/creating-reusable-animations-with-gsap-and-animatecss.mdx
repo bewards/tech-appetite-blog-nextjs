@@ -1,12 +1,13 @@
 ---
-title: 'Enable TypeScript checking in your Sitecore Next.js Application'
+title: 'Craft Beautiful Reusable Animations using only HTML attributes!'
 date: '2023-04-07'
-summary: TypeScript checking should be a required task in a Sitecore Next.js project
-tags: ['Sitecore JSS', 'Next.js', 'TypeScript']
+summary: Learn how to craft reusable and customizable animations using GSAP and Animate.css to enhance your web projects.
+tags: ['GSAP', 'Animations', 'JavaScript']
 draft: false
-images: ['/static/images/blog-thumbnails/sitecore-jss_nextjs.png']
+images: ['/static/images/blog-thumbnails/500x300_GSAP-Animations.png']
 authors: ['default']
 ---
+import IFrameResponsive from '@/components/jsx/iframe-responsive'
 
 Often times I find myself writing a lot of redundant types of JavaScript animations on different DOM elements throughout my client's websites. In this post, I will share and walk through some code snippets I've built and leveraged to speed up the animation process, reduce the amount of JavaScript required, all while still allowing variations in animation styles when attached to different elements.
 
@@ -52,3 +53,9 @@ This works well for instances where the component is first on the page or comes 
  - no scroll-jacking
 
 By itself, GSAP Animation Library is, in my opinion, the most well documented and community supported JavaScript animation library available. 
+
+Using GSAP and GSAP ScrollTrigger plugin, I've crafted an *unobtrusive* way of animating HTML atoms using inline attributes:
+
+<IFrameResponsive src="https://app.screencast.com/IOl5BLbMQ1leq/e" />
+
+[Click here](https://codepen.io/bensewards/full/rNzxOdz) to view the CodePen playground!
