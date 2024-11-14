@@ -59,7 +59,7 @@ export default function Home({ posts }) {
                           src={getFeaturedImages(post.images)[0].url}
                           alt={''}
                           fill={true}
-                          className="rounded-lg"
+                          className="rounded-lg bg-white"
                           style={{ maxHeight: 'max-content' }}
                         />
                       </div>
