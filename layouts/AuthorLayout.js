@@ -33,6 +33,13 @@ export default function AuthorLayout({ children, content }) {
                 data-share-badge-id="aecfbdec-cf64-48ba-ba84-fa2c395a37c1"
                 data-share-badge-host="https://www.credly.com"
               ></div>
+              <div
+                data-iframe-width="150"
+                data-iframe-height="270"
+                data-share-badge-id="20720061-58c0-4a05-baa0-6159201f076b"
+                data-share-badge-host="https://www.credly.com"
+                className="my-2"
+              ></div>
             </div>
 
             <div className="flex space-x-3 pt-6">
