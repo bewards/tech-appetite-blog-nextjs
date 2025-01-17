@@ -1,0 +1,62 @@
+---
+title: 'Sitecore CDP Exam Nextjs Playground and Key Takeaways'
+date: '2025-1-17'
+summary: Preparing for the Sitecore CDP Exam using a Next.js application for data ingestion practice and key takeaways from the exam's five competencies.
+tags: ['Sitecore', 'Sitecore CDP', 'Next.js']
+draft: false
+images: ['/static/images/blog-thumbnails/500x300_sitecore-cdp_nextjs.png']
+authors: ['default']
+---
+
+The Sitecore CDP Exam can be difficult to prep for without having adequate data representation, especially if you're a visual learner. After failing the CDP exam my first time around I realized that even though the documentation was plenty, there was still a lack of visual substance that can only really be achieved by Lab work or hands-on experience.
+
+> If you’re learning, you’re not failing.<br/>
+>   \- Bob Ross
+
+Through my second round of studying, I took to practice by creating a fairly simply Next.js application that simulates CDP data ingestion so that I could achieve a better understanding of the data in the system and how it flowed through real-time data ingestion to segmentation to audience outflows.
+
+[The application](https://github.com/bewards/nextjs-cdp) can be ran locally (or deployed to Vercel/Netlify, just make sure to keep your client key and token secure) and only requires that a CDP sandbox is already set up. Follow the README and start sending data to your CDP!
+
+## CPD Playground Notes
+🐻 Engage SDK managed using [Zustand State Management](https://github.com/pmndrs/zustand) <br>
+Ⓜ️ Thoughtfully crafted using Tailwind &amp; Mantine UI
+
+✨ Current Feature List
+- Current User Tracking via Engage SDK
+    - VIEW event configured at Layout with Zustand Provider
+    - IDENTITY event via Simple Form (FormCoupon)
+- Simulating Events via Stream API Direct HTTPS Requests
+    - Simulating 10 new guests with page view
+- Add to cart for ADD event configured
+
+## Exam Take 2 Key Understandings
+Along side the application, it was also imperative to have key understandings of the 5 competencies. I've listed areas below from these competencies that aided in passing the second time around:
+
+### Competency 1: Customer Data Platform
+- PII Data and Identity Model 2.1
+- Data extensions, their attributes, conventions, and limitations
+- Event Sessions and hierarchy
+- Data Lake file access and format
+
+### Competency 2: Real-Time Behavioral Data Ingestion
+- Stream API
+	- General characteristics
+	- Engage SDK integration points and when to use each one
+	- Direct HTTPS Request requirements
+	- Debugging initialization and events
+- Event types
+- Order for checkout sequence
+
+### Competency 3: Interactive (REST) API
+- Resources that use the API
+- Required API parameters and request attributes
+- API Status codes & authorization types
+
+### Competency 4: Batch Data Ingestion
+- Limitations on size and resource collections (Guest and Offline orders)
+- Steps to uploading
+- JSON record requirements
+
+### Competency 5: Batch Segments and Audience Export
+- Accessing exports
+- Data output via Dynamic attributes and Javascript 
