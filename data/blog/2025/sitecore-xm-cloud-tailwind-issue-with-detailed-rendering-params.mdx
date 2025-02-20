@@ -1,0 +1,154 @@
+---
+title: 'Sitecore XM Cloud Tailwind Issues With Detailed Rendering Parameters Flag Enabled'
+date: '2025-2-20'
+summary: Issues with the Detailed Rendering Parameters flag in Sitecore XM Cloud with Tailwind CSS are addressed. A solution is provided to fix the SXA Components by creating a method to handle rendering parameters and re-adding essential styling for proper display.
+tags: ['Sitecore', 'Sitecore XM Cloud', 'Next.js']
+draft: false
+images: ['/static/images/blog-thumbnails/500x300_sitecore-cdp_nextjs.png']
+authors: ['default']
+---
+
+While working on a site build that provides it's own Design System of components, the system itself (npm package) exposed it's style library framework, Tailwind, with customizations specific to the design system.
+
+Switching to Tailwind v3 in Sitecore only requires that your Site grid system is pointed to Tailwind. I took an additional step to strip out the bootstrap css `@import "bootstrap/scss/bootstrap"` from the rendering host, path: /rendering-host/src/assets/main.scss
+
+After following these steps and dropping the <b>SXA Column Splitter</b> onto the page in connected mode, I noticed that the columns were no longer split 50-50, even though the Grid Parameters were set as such:
+
+![SXA Column Splitter Broken](/static/images/blog-content-images/2025-02-20_xmcloud-col-splitter-broken.png)
+
+Inspecting the DOM led to confirming my suspicion that the Grid Parameter classes were not being applied correctly. We can see below that the classes are output as `[object Object]`:
+
+```html
+<div class="row component column-splitter [object Object]">
+  <div class="[object Object]"><div class="row"></div></div>
+  <div class="[object Object]"><div class="row"></div></div>
+</div>
+```
+
+It just so happens that I was already familiar with the Sitecore patch setting `LayoutService.DetailedRenderingParams`, of which this setting is supposed to expand Rendering Parameters that are reference types (Item References where raw value is a Guid). Instead of typically getting the Guid back, the setting expands the object with it's own Field properties. By disabling the patch config temporarily, I confirmed that it brought back the CSS classes for the SXA Components, but it still didn't render the 50-50 correctly. Let's revisit that after fixing the issue with the out-of-the-box SXA Components.
+
+## Fixing the SXA Components
+The SXA Components retrieve the rendering parameters as a string type, so when the detailed rendering parameters flag is enabled, the property becomes an object that just get's printed out safely:
+
+```tsx
+const styles = `${props.params.GridParameters ?? ''} ${props.params.Styles ?? ''}`.trimEnd();
+```
+
+To resolve (or patch) this, let's set up a method called `getRenderingParam` to re-use across all components. The method can accept whatever types your heart desires, but in my case I chose to encapsulate the type as `CustomRenderingParameter` (I placed it inline below for readability, store it under your types!). The method will return a string and figure out what type is being passed in to grab the right property (or spit back the string):
+
+```ts
+import type { Field } from '@sitecore-jss/sitecore-jss-nextjs';
+
+// this is other custom Item reference Rendering Parameters that use the same template
+export type KeyValuePair = {
+  key: Field<string>;
+  value: Field<string>;
+};
+
+// this is the GridParameters from SXA
+export type RenderingParamGrid = {
+  Class: {
+    value: string;
+  };
+};
+
+export type CustomRenderingParameter = KeyValuePair | RenderingParamGrid | string | null;
+
+export const getRenderingParam = (param: CustomRenderingParameter): string => {
+  let renderingParam = '';
+
+  if (!param) return renderingParam;
+
+  // if the passed param is a string, it could still be a 'jsonValue', so try to parse it first, then fallback to the string
+  if (typeof param === 'string') {
+    try {
+      const paramObj = JSON.parse(param);
+      if (paramObj.Value) {
+        renderingParam = paramObj.Value.value;
+      } else if (paramObj.Class) {
+        renderingParam = paramObj.Class.value;
+      }
+    } catch (e) {
+      logError({ e, pre: 'getRenderingParam error:' });
+    } finally {
+      // if we already have a string, return it
+      return param;
+    }
+  } else if ('key' in param) {
+    renderingParam = param.value.value;
+  } else if ('Class' in param) {
+    // support for RenderingParamGrid (SXA Grid Params when LayoutService.DetailedRenderingParams = true)
+    renderingParam = param.Class.value;
+  }
+
+  return renderingParam;
+};
+```
+
+Simply replace wherever `GridParameters` and `columnWidths` is mentioned with `getRenderingParam(property)`. See below for the ColumnSplitter.tsx:
+
+```tsx
+export const Default = (props: ComponentProps): JSX.Element => {
+  const styles = `${getRenderingParam(props.params.GridParameters) ?? ''} ${
+    props.params.Styles ?? ''
+  }`.trimEnd();
+
+  const columnWidths = [
+    props.params.ColumnWidth1,
+    props.params.ColumnWidth2,
+    props.params.ColumnWidth3,
+    props.params.ColumnWidth4,
+    props.params.ColumnWidth5,
+    props.params.ColumnWidth6,
+    props.params.ColumnWidth7,
+    props.params.ColumnWidth8,
+  ];
+  const columnStyles = [
+    props.params.Styles1,
+    props.params.Styles2,
+    props.params.Styles3,
+    props.params.Styles4,
+    props.params.Styles5,
+    props.params.Styles6,
+    props.params.Styles7,
+    props.params.Styles8,
+  ];
+  const enabledPlaceholders = props.params.EnabledPlaceholders.split(',');
+  const id = props.params.RenderingIdentifier;
+
+  return (
+    <div className={`row component column-splitter ${styles}`} id={id ? id : undefined}>
+      {enabledPlaceholders.map((ph, index) => {
+        const phKey = `column-${ph}-{*}`;
+
+        const phStyles = `${getRenderingParam(columnWidths[+ph - 1])} ${
+          columnStyles[+ph - 1] ?? ''
+        }`.trimEnd();
+```
+
+After saving and switching back to our page, our CSS classes are back!
+
+```html
+<div class="row component column-splitter basis-full">
+  <div class="basis-1/2"><div class="row"></div></div>
+  <div class="basis-1/2"><div class="row"></div></div>
+</div>
+```
+## Fixing The Missing Style Glue
+Even though the CSS classes are back, that didn't fully fix the 50-50 styling. The `basis-1/2` tailwind class simply provides the flex-basis CSS property, but it requires the parent element to have display: flex. Since we excluded the bootstrap import in our steps rightfully to exclude Bootstrap framework styling, the very minimal essential styling needs to be re-added. We can fix this by simply adding the `.row` selector with the display flex property anywhere in our custom scss:
+
+```scss
+/** 
+ *  Tailwind Grid adjustments for Sitecore Grid Rendering Parameters
+ */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+}
+```
+
+And there we have it, working SXA Component Grid Parameters again!
+
+![SXA Column Splitter Fixed](/static/images/blog-content-images/2025-02-20_xmcloud-col-splitter-fixed.png)
+
+<i>There may still be other ways to choose which Rendering Parameters get expanded as to prevent this collision that seems to happen with this Detailed Rendering Params setting. I'll report back with any further findings.</i>
