@@ -1,0 +1,25 @@
+---
+title: 'Sitecore Component Scaffolder: Revamped Component Creation'
+date: '2025-4-9'
+summary: Introducing the Sitecore Component Scaffolder, a simple expandable tool designed to enhance developer efficiency and adaptability in Sitecore projects. Features include dynamic project feature selection, Handlebars templating, and developer-friendly prompts.
+tags: ['Sitecore', 'Tooling']
+draft: false
+images: ['/static/images/blog-thumbnails/500x300_sitecore-xmcloud.png']
+authors: ['default']
+---
+import VideoResponsive from '@/components/jsx/video-responsive'
+
+A scaffolding tool is a beneficial way of kick-starting the creation of a Feature, such as a Sitecore Component, while providing guard rails and best practices for the Project at hand. Scaffolding tools should be maintainable, readable, and efficient enough that new evolutions of the templating can be introduced during development through none other than developer experiences. For example, your initial Sprint may start off with a simple component creation, including the standard JSS [Styleguide](https://doc.sitecore.com/xp/en/developers/hd/latest/sitecore-headless-development/add-ons-for-next-js-applications.html) patterns. Once the team has built up the project foundation and set out on completing a couple features, there's now room for those standards of component creation to evolve based on your team's needs and established principles.
+
+Although Sitecore JSS starter kits come with a simple scaffolding command that can be expanded upon, I have found it's maintainability to be cumbersome and lack features I was looking for, such as prompting developers for choices that determine how the feature is created.
+
+## The Sitecore Component Scaffolder
+The [Sitecore Component Scaffolder](https://github.com/bewards/SitecoreComponentScaffolder) intends on acting as the starting point for Sitecore component scaffolding, features, and beyond. This tooling has worked well and has adapted to my project needs, so I've decided to share a sample of it's capabilities with the community!
+
+✨ Current Features ✨
+✅ Pre-determined sample questions built within the plopfile.mjs file.
+✅ Handlebars templating logic with conditions for building out the file based on Plop responses
+✅ Select from a dynamic list of existing project Feature choices or create a new Feature
+✅ Powerful Plop question types such as input, confirm, and list
+
+<VideoResponsive src="/static/videos/component-scaffolding-edited-zoom.mp4" />
