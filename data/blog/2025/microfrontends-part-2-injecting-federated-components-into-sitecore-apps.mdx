@@ -1,0 +1,335 @@
+---
+title: 'Micro-Frontend Part 1: Module Federation'
+date: '2025-6-01'
+summary: TODO summary
+tags: ['Sitecore', 'Module Federation']
+draft: false
+images: ['/static/images/blog-thumbnails/500x300_module-federation-sitecore.png']
+authors: ['default']
+---
+
+In the previous [Part 1](/blog/2025/microfrontends-part-1-module-federation) we explored the basics of Module Federation as a pattern for implementing Micro-Frontends. In Part 2 we will jump right into exposing a Remote Next.js app's components and a service to be consumed by a Sitecore XM Cloud Next.js app, rendering the Remote apps components in Sitecore.
+
+## The Scenario
+![scenario diagram of single host, Sitecore, consuming remote federated app](/public/static/images/blog-content-images/mf/mf_scenario-single-host-sitecore.png)
+
+The Remote MF Next.js app is developed locally on `localhost:3001`, exposing it's react components via `ModuleFederationNextPlugin` to the Host Next.js app, Sitecore. The Sitecore app renders the Remote components through *wrapper components*, of which are Sitecore JSS components that just pass down the props to the Remote components.
+
+## Implementing the Scenario
+You can follow along with this scenario by checking out the sample code [here](https://github.com/bewards/MicroFrontend-Sitecore). The steps below will describe the process and important parts. For the purpose of easier demo and setup/checkout, I kept both apps (mf_catalog & mf_marketing) as a Monorepo setup.
+
+### Step 1: The Catalog Remote App
+The Catalog Remote App, `mf_catalog`, will expose three components:
+- Featured Products
+- Product Listing
+- Favorites Dropdown
+  - displayed within the Sitecore Header component
+  - shows the capability of sharing a store between Remote and Host apps
+
+First, create the Next.js app via command `npx create-next-app@latest`.
+
+Install the required packages: `npm install @module-federation/nextjs-mf @module-federation/typescript zustand`
+
+Copy over the `.env` file from the Sitecore Next.js app and place it into the root directory. The `.env` file should contain the standard Sitecore properties plus the following for Part 2 and Part 3 XM Cloud interactions. Part 2 will only use `NEXT_PUBLIC_SITE_URL`:
+
+```env
+SITECORE_SITE_NAME=POPULATE_FROM_SITECORE_CLOUD_DEV_SETTINGS
+SITECORE_EDGE_CONTEXT_ID=POPULATE_FROM_SITECORE_CLOUD_DEV_SETTINGS
+JSS_EDITING_SECRET=POPULATE_FROM_SITECORE_CLOUD_DEV_SETTINGS
+NEXT_PUBLIC_SITE_URL=http://localhost:3001
+FETCH_WITH=GraphQL
+```
+
+#### Create the Remote Components
+Below I will show just the Featured Products remote component since the other components give no extra federated functionality (see the github repo link for all three).
+
+`Featured Products` (FeaturedProductsByCategoryCTA) will:
+- use the `next-localization` package to translate dictionary entries from the Sitecore i18n provider
+- use a favorites store built with `Zustand` so users can favorite a product
+- allow the passing of `props` and children component(s) from Sitecore
+- use `React.ReactNode` to support passing in editable properties from Sitecore
+
+```tsx
+// FeaturedProductsByCategoryCTA.tsx
+import { withPublicUrl } from '@/lib/url-helper';
+import { useFavoritesStore } from '@/store/favorites';
+import { Product } from '@/types/product';
+import { useI18n } from 'next-localization';
+import React, { PropsWithChildren, useState } from 'react';
+
+type FeaturedProductByCategoryCTAProps = PropsWithChildren & {
+  ctaCategories: ProductCategory[];
+
+  // passed in from Sitecore wrapper component for editability
+  saveIcon?: React.ReactNode;
+  plusIcon?: React.ReactNode;
+};
+
+type ProductCategory = {
+  categoryId: string;
+  categoryLabel: string;
+};
+
+const featuredProductsByCategory: Product[] = [
+  {
+    id: 101,
+    categoryId: '1',
+    name: 'Eyeglasses Product 1',
+    brand: 'Brand A',
+    priceLineThrough: '$100.00',
+    price: '$80.00',
+    image: '/catalog/product-5.webp',
+  },
+  {
+    id: 102,
+    categoryId: '1',
+    name: 'Eyeglasses Product 2',
+    brand: 'Brand B',
+    priceLineThrough: '$200.00',
+    price: '$150.00',
+    image: '/catalog/product-2.webp',
+  },
+  ...
+];
+
+const FeaturedProductsByCategoryCTA: React.FC<FeaturedProductByCategoryCTAProps> = (props) => {
+  const { ctaCategories, plusIcon, saveIcon, children } = props;
+  const { t } = useI18n() || { t: (key: string) => key };
+  if (!ctaCategories) {
+    return <></>;
+  }
+  const bottomButtonLabel = t('FeaturedProductsByCategoryCTA.BottomButtonLabel') || 'Shop Now';
+
+  const { addFavorite, removeFavorite, isFavorite } = useFavoritesStore();
+
+  const toggleFavorite = (product: Product) => {
+    if (isFavorite(product.id)) {
+      removeFavorite(product.id);
+    } else {
+      addFavorite(product);
+    }
+  };
+
+  // STATE
+  const [selectedCategory, setSelectedCategory] = useState<ProductCategory>(ctaCategories[0]);
+
+  // EVENTS
+  const selectProductCategory = (category: ProductCategory) => {
+    setSelectedCategory(category);
+  };
+  return (
+    <div className="container mx-auto py-4 outline-4 outline-offset-[-4px] outline-red-500">
+      <div className="productCTA__selection">
+        <div className="container mx-auto py-4">
+          <div className="productCTA__selection">
+            <div className="inline-flex space-x-2 rounded-lg bg-gray-200 p-2">
+              {ctaCategories.map((category, key) => (
+                <button
+                  key={category.categoryId}
+                  onClick={() => selectProductCategory(category)}
+                  className={`px-4 py-2 rounded-lg ${
+                    selectedCategory.categoryId === category.categoryId
+                      ? 'bg-white text-black'
+                      : 'bg-gray-300 text-gray-700'
+                  }`}
+                >
+                  {category.categoryLabel}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="productCTA__categoryProducts">
+        <div className="container mx-auto py-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {featuredProductsByCategory
+              .filter((product) => product.categoryId === selectedCategory.categoryId)
+              .map((product) => (
+                <div key={product.id} className="bg-white p-4 rounded-md shadow-md">
+                  <div className="productCTA__item__imgWrap relative">
+                    <img
+                      src={withPublicUrl(product.image)}
+                      alt={product.name}
+                      className="w-full h-auto mb-4"
+                    />
+                    <div className="productCTA__imgActions absolute right-1 bottom-1">
+                      {saveIcon && (
+                        <button
+                          className={`productCTA__save rounded-full border p-1 hover:border-gray-600 ${
+                            isFavorite(product.id)
+                              ? 'border-red-500 bg-red-100'
+                              : 'border-gray-400 bg-white'
+                          }`}
+                          onClick={() => toggleFavorite(product)}
+                        >
+                          {typeof saveIcon === 'string' ? (
+                            <img
+                              src={saveIcon}
+                              alt="Save"
+                              className={`w-4 h-4`}
+                              style={{
+                                filter: isFavorite(product.id)
+                                  ? 'invert(27%) sepia(94%) saturate(747%) hue-rotate(340deg) brightness(91%) contrast(88%)'
+                                  : 'none',
+                              }}
+                            />
+                          ) : (
+                            saveIcon
+                          )}
+                        </button>
+                      )}
+                      {plusIcon && (
+                        <button className="productCTA__plus rounded-full border border-gray-400 bg-white p-1 hover:border-gray-600 ms-1">
+                          {typeof plusIcon === 'string' ? (
+                            <img src={plusIcon} alt="Plus" className="w-4 h-4" />
+                          ) : (
+                            plusIcon
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-lg font-semibold">{product.name}</h3>
+                      <p className="text-gray-500">{product.brand}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-red-500 line-through">{product.priceLineThrough}</p>
+                      <p className="text-green-500 font-bold">{product.price}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+          </div>
+        </div>
+      </div>
+      <div className="productCTA__bottomAction text-center">
+        <button className="border border-orange-500 bg-white text-orange-500 font-semibold px-4 py-2 rounded-full hover:bg-orange-500 hover:text-white transition-colors cursor-pointer w-3/7">
+          {bottomButtonLabel}
+        </button>
+      </div>
+      {children}
+    </div>
+  );
+};
+
+export default FeaturedProductsByCategoryCTA;
+```
+
+#### Configure Module Federation
+Now we need to expose the remote components for consumption by the Host App, Sitecore.
+
+The module federation config settings for Next.js are placed in a separate file called `mf.config.js` for organization purposes:
+
+```js
+// mf.config.js
+
+// storing URL for deploy support
+const MF_MARKETING_APP_URL = process.env.MARKETING_APP_URL || 'http://localhost:3000';
+
+// NextFederationPlugin.OPTIONS
+const MF_OPTIONS = (isServer, isTypes) => {
+  return {
+    name: 'mf_catalog',
+    filename: 'static/chunks/remoteEntry.js',
+    exposes: {
+      './FavoritesDropdown': './src/components/FavoritesDropdown',
+      './FeaturedProductsByCategoryCTA': './src/components/FeaturedProductsByCategoryCTA',
+      './ProductListing': './src/components/ProductListing',
+    },
+    // The NextFederationPlugin automatically shares all Next and React core dependencies for us
+    shared: {
+      // share for i18n
+      'next-localization': {
+        singleton: true,
+        import: undefined,
+        version: '0.12.0',
+        requiredVersion: '^0.12.0',
+      },
+    },
+    extraOptions: {
+      //// SAMPLE extra options
+      // automaticAsyncBoundary: true,
+      // exposePages: true,
+    },
+  };
+};
+
+module.exports = MF_OPTIONS;
+```
+
+The MF Settings are then referenced in the `next.config.js` file as `MF_OPTIONS` under webpack settings:
+
+```js
+// next.config.js
+const NextFederationPlugin = require('@module-federation/nextjs-mf');
+const { FederatedTypesPlugin } = require('@module-federation/typescript');
+const MF_OPTIONS = require('./mf.config');
+
+const nextConfig = {
+  /* config options here */
+  reactStrictMode: true,
+  assetPrefix: 'http://localhost:3001',
+  i18n: {
+    // These are all the locales you want to support in your app.
+    // These should generally match (or at least be a subset of) those in Sitecore.
+    locales: ['en', 'es-ES'],
+    // This is the locale that will be used when visiting a non-locale
+    // prefixed path e.g. `/styleguide`.
+    defaultLocale: 'en',
+  },
+  webpack(config, options) {
+    const { isServer } = options;
+    if (!isServer) {
+      // This is a workaround for the issue with module federation and Next.js client-side
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        os: false,
+        path: false,
+      };
+    }
+    config.plugins.push(new NextFederationPlugin(MF_OPTIONS(isServer)));
+    config.plugins.push(
+      new FederatedTypesPlugin({
+        federationConfig: MF_OPTIONS(isServer, false),
+        typeFetchOptions: {
+          downloadRemoteTypesTimeout: 10000,
+          maxRetryAttempts: 10,
+          retryDelay: 2000,
+        },
+        //// enable below if hosting type generation on separate webpack server due to multiple host apps
+        // typeServeOptions: {
+        //   port: 3003,
+        //   host: 'localhost',
+        // },
+      })
+    );
+
+    return config;
+  },
+};
+
+module.exports = nextConfig;
+```
+
+### Step 2: The Sitecore Host App
+The Sitecore Host App, `mf_marketing`, contains the Next.js rendering host under `mf_marketing/headapps/nextjs-starter`.
+
+The Host app will also need the same npm packages installed for Module Federation as Step 1.
+
+#### Create the Host Wrapper Components
+
+
+#### Configure Module Federation for the Remote
+
+TODO - patch
+
+### Step 4: Run and Test the Apps locally
+
+## Looking Ahead
+> In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.
+
+> In [Part 4](/blog/2025/microfrontends-part-4-injecting-sitecore-pages-into-other-apps) of this series, we will look into exposing the Sitecore Dynamic Page Route inside of other Host apps without needing to do any Sitecore specific coding in those apps, giving our Hosted apps the power of Sitecore with minimal configuration.

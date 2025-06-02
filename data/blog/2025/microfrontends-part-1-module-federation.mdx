@@ -1,0 +1,186 @@
+---
+title: 'Micro-Frontend Part 1: Module Federation'
+date: '2025-5-26'
+summary: An introduction to micro-frontends and Module Federation, exploring how this architecture enables independent, framework-agnostic frontend development.
+tags: ['Sitecore', 'Module Federation']
+draft: true
+images: ['/static/images/blog-thumbnails/500x300_module-federation-sitecore.png']
+authors: ['default']
+---
+
+Many modern backend system landscapes follow the architecture pattern known as **microservices**, while the frontend's are still implemented as single monolithic solutions. These monolithic solutions are ideal for teams that control all vertical slices of an application. Over time, the frontend layer grows and gets more difficult to maintain.
+
+## Enter Micro-Frontend
+
+A micro-frontend extends the idea of microservices, separating featured verticals into end-to-end teams, building independent framework-agnostic self-contained apps. The idea behind this concept is to think about a website as a composition of features, owned and managed by independent teams. A team is cross-functional, developing its features based on the mission statement of said feature:
+
+![micro-frontend and microservices by vertical](/public/static/images/blog-content-images/mf/mf_verticals.png)
+
+## Module Federation
+
+Module Federation is widely considered one of the leading patterns to micro-frontend architecture. At the core, this tooling allows the sharing of code across JavaScript applications at **runtime**. MF provides comprehensive tools that enables core plugin and framework capabilities.
+
+MF compromises three main parts:
+
+1. Exposed Module(s) (_Remote_)
+1. Consumption Module (_Host_)
+1. Shared Dependencies (_Shared Modules_)
+
+
+
+## Module Federation Ecosystem
+
+I've put together the current state of the _MF v2.0 Ecosystem_ below. Note that the ecosystem is ever-evolving.
+
+![module federation ecosystem](/public/static/images/blog-content-images/mf/mf_ecosystem.png)
+
+### Module Federation Ecosystem - Build Tools
+
+Rspack, Webpack, and Vite are the currently supposed build tools, implemented as Module Federation npm plugins. Plugins must be installed on both the Remote and Host applications.
+
+Build tools can be different between the host and remote applications just as long as the framework is the same (E.g., both host and remote must use React).
+
+The Next.js MF build plugin, **NextFederationPlugin**, specifically extends the base Webpack MF plugin. We will here more about why that is the case later on.
+
+### Module Federation Ecosystem - Tooling
+
+Module Federation V2.0 comes pre-baked with the following tool sets:
+
+- Runtime plugin system: The entire lifecycle of Module Federation is exposed as a custom runtime plugin, allowing developers to tap into areas such as **beforeInit**.
+- Type Generation: The Host application (that consumes Remote modules) doesn't have to duplicate types or statically declare modules.
+- Dev Tools: popular local development options are enabled, such as live reload, hot types reload, and dynamic remote type hints.
+- Manifest: Instead of direct linking to the `remoteEntry.js` file that contains the implemented exposed modules, the `Manifest` can be used to further enhance development, such as enabling map files.
+
+### Module Federation Ecosystem - Frameworks
+
+ModernJS is the toted meta-framework for future compatibility of Module Federation. Next.js is also supported, but there are some caveats to be aware of that I'll allude to in a bit.
+
+### Module Federation Ecosystem - Delivery
+
+If your Module Federated Remote application doesn't require Server-side functionality (such as either being a server-side react component or trying to fetch data from the applications server-side API endpoints), the build for said Remote application can produce the `remoteEntry.js` file and host it directly on a CDN of your choice for the Host application to consume. For more complex scenarios, the applications could just as well be separately hosted in Vercel or Netlify to maintain server functionality. Another approach is to use a micro-frontend delivery service, such as Zephyr Cloud/Nx Cloud, which encompasses all federated application build processes and delivery management.
+
+## Module Federation Benefits
+
+- Reduce code duplication and grouped complexities
+- Teams (Verticals) can work and build independently
+- Separate CI/CD processes
+- MF Remote Apps can stand alone without the Host app, making them suitable for test-driven development
+
+## Module Federation Constraints
+
+- Support for Next.js development is [on hold, but with a path forward](https://github.com/module-federation/core/issues/3153).
+  - The creator of Module Federation, Zachary Jackson, manages the core library that encompasses build and runtime plugins, as well as framework support, such as Next.js and Modern.js. Next.js, being owned by Vercel, makes them somewhat of a competitor to this “micro-frontend” space.
+  - The latest sentiment across teams is that Vercel has no opposition to federation support assuming it does not become a resource drain on their team to support and that it does not drastically alter the product.
+- Current Next.js support includes:
+  - <= v15
+  - SSR
+  - SSG\*
+  - Page router only (App router works, but isn't in active development)
+
+_\* For SSG, Remote apps need to be available at build time. Remote changes won't be reflected until doing a full rebuild of the Host app._
+
+## Module Federation vs NPM Package
+
+- MF modules can consume npm packages.
+  - The goal of an MF app is to be a complete Feature, consisting of npm packages such as core-ui packages.
+- MF modules can utilize omnidirectional routing, such as between pages or components
+- MF component context works across boundaries, allowing remote components to share state
+
+## Basic Module Federation Example using Webpack Plugin
+
+Let's say we have two React v18 projects, _AppHost_ and _AppRemote1_.
+
+_AppRemote1_ exposes a `Hero` component and sets a shared React dependency:
+
+```js
+const deps = require('./package.json').dependencies
+
+module.exports = {
+  devServer: {
+    port: 3001,
+  },
+  plugins: [
+    new ModuleFederationPlugin({
+      name: 'mf_appRemote1',
+      filename: 'remoteEntry.js',
+      exposes: {
+        './hero': './src/Hero.jsx',
+      },
+      shared: {
+        react: {
+          requiredVersion: deps.react,
+          singleton: true,
+        },
+        'react-dom': {
+          singleton: true,
+        },
+      },
+    }),
+  ],
+}
+```
+
+During the build of _AppRemote1_, the Webpack MF plugin generates the `remoteEntry.js` file that exposes methods for the Host app to consume, along with a module map of any exposed modules.
+
+_AppHost_ is configured to consume the components with the **remote** setting:
+
+```js
+const deps = require('./package.json').dependencies
+
+module.exports = {
+  plugins: [
+    new ModuleFederationPlugin({
+      name: 'mf_appRemote1',
+      remotes: {
+        mf_appRemote1: 'mf_appRemote1@http://localhost:3001/remoteEntry.js',
+      },
+      shared: {
+        react: {
+          requiredVersion: deps.react,
+          singleton: true,
+        },
+        'react-dom': {
+          singleton: true,
+        },
+      },
+    }),
+  ],
+}
+```
+
+Then we consume the remote module within the Host app:
+```js
+import React from 'react';
+import Hero from 'mf_appRemote1/Hero'; // federated import
+
+function App(props) {
+  return (
+    <div>
+      <h1>Host App</h1>
+      <Hero {...props} />
+    </div>
+  );
+}
+
+export default App;
+```
+
+If for some reason the type generation doesn't work on TS enabled apps, you can temporarily add a `remote-declaration.ts` file. as well:
+
+```ts
+declare module 'mf_appRemote1/Hero';
+```
+
+## Module Federation Scenario - SPA control
+In a SPA scenario, Remote apps with different (or similar) frameworks are exposed as a module-level application and injected into the Host app, instead of just their components. Each Remote module-level application controls its own routing mechanism and build tooling:
+
+![SPA module-level application micro-frontend diagram example](/public/static/images/blog-content-images/mf/mf_bridge-app-mode.png)
+
+## Module Federation Examples
+The MF team has a robust amount of federated examples on Github [here](https://github.com/module-federation/module-federation-examples/tree/master).
+
+For example, a comprehensive React 18 [demo](https://github.com/module-federation/module-federation-examples/tree/master/comprehensive-demo-react18) that connects a React Host with React, SvelteJS, and LitElement Remote apps.
+
+## Up Next
+- Injecting Federated Next.js React Components in Sitecore Next.js Applications
+- Injecting Sitecore Layout Data and Components into non-Sitecore Next.js Applications
