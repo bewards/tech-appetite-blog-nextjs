@@ -13,7 +13,7 @@ In the previous [Part 2](/blog/2025/microfrontends-part-2-injecting-federated-co
 Today in Part 3, we will dive deeper into Remote Components by creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App, along with a Sitecore wildcard for the PDP Detail page.
 
 ## The Scenario
-![scenario diagram of single host, Sitecore, consuming remote federated app](/public/static/images/blog-content-images/mf/mf_scenario-single-host-sitecore.png)
+![scenario diagram of single host, Sitecore, consuming remote federated app](/static/images/blog-content-images/mf/mf_scenario-single-host-sitecore.png)
 
 The Remote MF Next.js app is developed locally on `localhost:3001`, exposing it's react components via `ModuleFederationNextPlugin` to the Host Next.js app, Sitecore. The Sitecore app renders the Remote components through *wrapper components*, of which are Sitecore JSS components that just pass down the props to the Remote components.
 

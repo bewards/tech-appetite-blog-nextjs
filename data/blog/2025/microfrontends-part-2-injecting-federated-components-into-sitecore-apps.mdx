@@ -1,22 +1,24 @@
 ---
-title: 'Micro-Frontend Part 1: Module Federation'
+title: 'Micro-Frontend Part 2: Exposing Remote Components in Sitecore'
 date: '2025-6-01'
-summary: TODO summary
+summary: Learn how to use Module Federation to expose components from a Remote App right into your Sitecore Next.js App with type generation!
 tags: ['Sitecore', 'Module Federation']
-draft: false
+draft: true
 images: ['/static/images/blog-thumbnails/500x300_module-federation-sitecore.png']
 authors: ['default']
 ---
 
-In the previous [Part 1](/blog/2025/microfrontends-part-1-module-federation) we explored the basics of Module Federation as a pattern for implementing Micro-Frontends. In Part 2 we will jump right into exposing a Remote Next.js app's components and a service to be consumed by a Sitecore XM Cloud Next.js app, rendering the Remote apps components in Sitecore.
+In the previous [Part 1](/blog/2025/microfrontends-part-1-module-federation) we explored the basics of Module Federation as a pattern for implementing Micro-Frontends. In Part 2 we will jump right into exposing a Remote Next.js app's components to be consumed by a Sitecore XM Cloud Next.js app, rendering the Remote apps components in Sitecore.
 
 ## The Scenario
-![scenario diagram of single host, Sitecore, consuming remote federated app](/public/static/images/blog-content-images/mf/mf_scenario-single-host-sitecore.png)
+![scenario diagram of single host, Sitecore, consuming remote federated app](/static/images/blog-content-images/mf/mf_scenario-single-host-sitecore.png)
 
-The Remote MF Next.js app is developed locally on `localhost:3001`, exposing it's react components via `ModuleFederationNextPlugin` to the Host Next.js app, Sitecore. The Sitecore app renders the Remote components through *wrapper components*, of which are Sitecore JSS components that just pass down the props to the Remote components.
+The Remote MF Next.js app, `mf_catalog`, is developed locally on `localhost:3001`, exposing it's react components via `ModuleFederationNextPlugin` to the Host Next.js Sitecore app, `mf_marketing`.
+
+The Sitecore app renders the Remote components through *wrapper components*, of which are Sitecore JSS components that just pass down the props to the Remote components, with a sprinkle of magic.
 
 ## Implementing the Scenario
-You can follow along with this scenario by checking out the sample code [here](https://github.com/bewards/MicroFrontend-Sitecore). The steps below will describe the process and important parts. For the purpose of easier demo and setup/checkout, I kept both apps (mf_catalog & mf_marketing) as a Monorepo setup.
+You can follow along with this scenario by checking out the sample code [here](https://github.com/bewards/MicroFrontend-Sitecore). The steps below will describe the process and important steps. For the purpose of demo and easier setup/checkout, I kept both apps (mf_catalog & mf_marketing) as a Monorepo setup so you can clone the repo and open each app in VSCode as a workspace.
 
 ### Step 1: The Catalog Remote App
 The Catalog Remote App, `mf_catalog`, will expose three components:
@@ -320,14 +322,225 @@ The Sitecore Host App, `mf_marketing`, contains the Next.js rendering host under
 
 The Host app will also need the same npm packages installed for Module Federation as Step 1.
 
+#### Configure Module Federation for the Remote & Remote Type Generation
+The Host app will register the remote using the `remotes` property:
+
+```js
+//mf.config.js
+const MF_OPTIONS = (isServer) => {
+  return {
+    name: 'mf_marketing',
+    remotes: {
+      mf_catalog: `mf_catalog@${
+        process.env.CATALOG_APP_URL || 'http://localhost:3001'
+      }/_next/static/${isServer ? 'ssr' : 'chunks'}/remoteEntry.js`,
+    },
+    filename: 'static/chunks/remoteEntry.js',
+    dts: false,
+    shared: {
+      'next-localization': {
+        singleton: true,
+        import: undefined,
+        version: '0.12.0',
+        requiredVersion: '^0.12.0',
+      },
+    },
+    extraOptions: {
+      automaticAsyncBoundary: true,
+      exposePages: true,
+    },
+  };
+};
+
+module.exports = MF_OPTIONS;
+```
+
+Then in the Next config, we will apply the `MF_OPTIONS` again under webpack, but also enable types generation (*other settings muted*):
+
+```js
+//next.config.js
+const jssConfig = require('./src/temp/config');
+const NextFederationPlugin = require('@module-federation/nextjs-mf');
+const { FederatedTypesPlugin } = require('@module-federation/typescript');
+const MF_OPTIONS = require('./mf.config');
+
+/**
+ * @type {import('next').NextConfig}
+ */
+const nextConfig = {
+  i18n: {
+    // These are all the locales you want to support in your application.
+    // These should generally match (or at least be a subset of) those in Sitecore.
+    locales: ['en', 'es-ES'],
+    // This is the locale that will be used when visiting a non-locale
+    // prefixed path e.g. `/styleguide`.
+    defaultLocale: jssConfig.defaultLanguage,
+  },
+
+  webpack(config, options) {
+    const { isServer } = options;
+    config.infrastructureLogging = { level: 'log' }; // enables verbose webpack logging
+    config.plugins.push(new NextFederationPlugin(MF_OPTIONS(isServer)));
+    config.plugins.push(
+      new FederatedTypesPlugin({
+        federationConfig: MF_OPTIONS(isServer),
+      })
+    );  // enable MF type generation
+
+    return config;
+  },
+};
+```
+
+#### Generating the Remote Types
+Before building and running the Sitecore app locally, let's head over to the `package.json` and make a small update required for MF:
+
+```json
+"scripts": {
+    "start:connected": "cross-env NODE_OPTIONS='--inspect' NODE_ENV=development NEXT_PRIVATE_LOCAL_WEBPACK=true npm-run-all --serial bootstrap --parallel next:dev start:watch-components",
+}
+```
+
+Now we can start the Remote Catalog app under `mf_catalog` with `npm run dev` to expose the Manifest entry file and optionally load the site under `http://localhost:3001`:
+
+```ps showLineNumbers
+PS C:\source\MicroFrontend-Sitecore\mf_catalog> npm run dev
+> cross-env NEXT_PRIVATE_LOCAL_WEBPACK=true next dev -p 3001
+  ▲ Next.js 14.2.28
+  - Local:        http://localhost:3001
+  - Environments: .env
+
+ ✓ Starting...
+
+[ Module Federation Manifest Plugin ] Manifest Link: http://localhost:3001/_next/static/chunks/mf-manifest.json
+[ Module Federation Manifest Plugin ] Manifest Link: http://localhost:3001/_next/mf-manifest.json
+```
+
+Then run Sitecore app as normal with `npm run start:connected`. Next, load the site under `http://localhost:3000`.
+
+Since we have the webpack logging set to verbose and the Sitecore debug set to all (*), I'll show the important Sitecore and MF outputs below:
+
+```ps {9,17-20} showLineNumbers
+PS C:\source\MicroFrontend-Sitecore\mf_marketing\headapps\nextjs-starter> npm run start:connected
+
+Registering generate-component-builder plugin component-builder
+...
+Registering middleware plugin multisite
+...
+Registering page-props-factory plugin normal-mode
+...
+Registering JSS component FeaturedProductsByCategoryCTA
+...
+  ▲ Next.js 14.2.28
+  - Local:        http://localhost:3000
+  - Environments: .env.local, .env
+
+ ✓ Starting...
+...
+[FederatedTypesPlugin] Generating types
+[FederatedTypesPlugin] Preparing to download types from remotes on startup
+[FederatedTypesPlugin] Getting types index for remote 'mf_catalog'
+[FederatedTypesPlugin] Downloading types...
+[FederatedTypesPlugin] PATCHED NODE MODULES! {
+  origin: 'http://localhost:3001/_next/static/chunks',
+  typescriptFolderName: '@mf-types',
+  file: 'FeaturedProductsByCategoryCTA.d.ts',
+  pathUrlString: 'http:\\localhost:3001\\_next\\static\\chunks\\@mf-types\\FeaturedProductsByCategoryCTA.d.ts'
+    }
+[FederatedTypesPlugin] downloading complete
+...
+[ Module Federation Manifest Plugin ] Manifest Link: http://localhost:3000/_next/static/chunks/mf-manifest.json
+...
+```
+
 #### Create the Host Wrapper Components
+The Host wrapper component shouldn't have to do much but `React.Lazy` import and render the Remote component.
 
+```tsx
+// ./src/components/CatalogWrappers/FeaturedProductsByCategoryCTA.tsx
+const MF_FeaturedProductsByCategoryCTA = lazy(
+  () => import('mf_catalog/FeaturedProductsByCategoryCTA')
+);
 
-#### Configure Module Federation for the Remote
+const FeaturedProductsByCategoryCTA: React.FC<FeaturedProductsByCategoryProps> = (props) => {
+  if (!props.fields?.data?.datasource) {
+    return null;
+  }
+  const { datasource } = props.fields.data;
+  return (
+    <>
+      <Suspense fallback={<CTALoader />}>
+        <MF_FeaturedProductsByCategoryCTA
+          ctaCategories={datasource.ctaCategories?.targetItems.map((item) => ({
+            categoryId: item.categoryId.jsonValue.value as string,
+            categoryLabel: item.categoryLabel.jsonValue.value as string,
+          }))}
+          saveIcon={<Image field={datasource.saveIcon?.jsonValue} className="save-icon" />}
+          plusIcon={<Image field={datasource.plusIcon?.jsonValue} className="plus-icon" />}
+        >
+          <section className="p-4 mt-2 outline-2 outline-offset-[-4px] outline-blue-500">
+            <p>
+              This content comes from the Sitecore wrapper component that renders the Remote{' '}
+              <code>mf_catalog</code> component, passing through Sitecore Datasource content to the
+              federated module, such as the save icon as a ReactNode for editability.
+            </p>
+            {datasource.testTitle?.jsonValue && (
+              <p className="test-title">
+                <span className="text-blue-500 font-semibold">
+                  Datasource field <code>&quot;testTitle&quot;</code> value by language:{' '}
+                </span>
+                <Text field={datasource.testTitle.jsonValue} />
+              </p>
+            )}
+          </section>
+        </MF_FeaturedProductsByCategoryCTA>
+      </Suspense>
+    </>
+  );
+};
 
-TODO - patch
+export default FeaturedProductsByCategoryCTA;
+```
 
-### Step 4: Run and Test the Apps locally
+I like to use `react-loading-skeleton` to create the loading skeleton and prevent CLS for any `React.Suspense` boundaries that are typical while using `React.lazy`:
+
+```tsx
+// ./src/components/Loaders/CTALoader.tsx
+import React from 'react';
+import Skeleton from 'react-loading-skeleton';
+import 'react-loading-skeleton/dist/skeleton.css';
+
+const CTALoader: React.FC = () => {
+  return (
+    <div className="container mx-auto py-4">
+      <div className="flex flex-col gap-8">
+        <Skeleton
+          containerClassName="w-[250px] shadow-lg rounded-md"
+          height={50}
+          borderRadius={8}
+        />
+        <Skeleton
+          containerClassName="flex justify-center items-center gap-8"
+          borderRadius={8}
+          count={3}
+          height={200}
+        />
+      </div>
+    </div>
+  );
+};
+
+export default CTALoader;
+```
+
+### Step 4: Load The Host App
+With MF configured on both ends, Remote types being generated within the Host app, and our Sitecore wrapper component configured to use the Remote component, we can finally load the Homepage and see the results!
+
+![scenario diagram of single host, Sitecore, consuming remote federated app](/static/images/blog-content-images/mf/mf_part2_marketing-homepage-loaded.png)
+
+To help visualize where the components come from, the `mf_catalog` components are outlined in <span className="text-rose-700">red</span> whereas the `mf_marketing` (sitecore) components are outlined in <span className="text-blue-700">blue</span>.<br />
+
+We've successfully exposed Remote catalog components into the Host Sitecore app with a state store that can communicate across boundaries! Clicking on a ❤️ icon from one of the product cards will update the Zustand Favorites store, providing reactive updates to the Favorites dropdown.
 
 ## Looking Ahead
 > In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.

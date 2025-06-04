@@ -142,3 +142,7 @@
 .token.table {
   display: inline;
 }
+
+pre {
+  overflow-x: auto;
+}

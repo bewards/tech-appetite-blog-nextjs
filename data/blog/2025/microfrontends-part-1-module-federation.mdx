@@ -14,7 +14,7 @@ Many modern backend system landscapes follow the architecture pattern known as *
 
 A micro-frontend extends the idea of microservices, separating featured verticals into end-to-end teams, building independent framework-agnostic self-contained apps. The idea behind this concept is to think about a website as a composition of features, owned and managed by independent teams. A team is cross-functional, developing its features based on the mission statement of said feature:
 
-![micro-frontend and microservices by vertical](/public/static/images/blog-content-images/mf/mf_verticals.png)
+![micro-frontend and microservices by vertical](/static/images/blog-content-images/mf/mf_verticals.png)
 
 ## Module Federation
 
@@ -26,13 +26,11 @@ MF compromises three main parts:
 1. Consumption Module (_Host_)
 1. Shared Dependencies (_Shared Modules_)
 
-
-
 ## Module Federation Ecosystem
 
 I've put together the current state of the _MF v2.0 Ecosystem_ below. Note that the ecosystem is ever-evolving.
 
-![module federation ecosystem](/public/static/images/blog-content-images/mf/mf_ecosystem.png)
+![module federation ecosystem](/static/images/blog-content-images/mf/mf_ecosystem.png)
 
 ### Module Federation Ecosystem - Build Tools
 
@@ -72,7 +70,7 @@ If your Module Federated Remote application doesn't require Server-side function
   - The creator of Module Federation, Zachary Jackson, manages the core library that encompasses build and runtime plugins, as well as framework support, such as Next.js and Modern.js. Next.js, being owned by Vercel, makes them somewhat of a competitor to this “micro-frontend” space.
   - The latest sentiment across teams is that Vercel has no opposition to federation support assuming it does not become a resource drain on their team to support and that it does not drastically alter the product.
 - Current Next.js support includes:
-  - <= v15
+  - &lt;&equals; v15
   - SSR
   - SSG\*
   - Page router only (App router works, but isn't in active development)
@@ -174,7 +172,7 @@ declare module 'mf_appRemote1/Hero';
 ## Module Federation Scenario - SPA control
 In a SPA scenario, Remote apps with different (or similar) frameworks are exposed as a module-level application and injected into the Host app, instead of just their components. Each Remote module-level application controls its own routing mechanism and build tooling:
 
-![SPA module-level application micro-frontend diagram example](/public/static/images/blog-content-images/mf/mf_bridge-app-mode.png)
+![SPA module-level application micro-frontend diagram example](/static/images/blog-content-images/mf/mf_bridge-app-mode.png)
 
 ## Module Federation Examples
 The MF team has a robust amount of federated examples on Github [here](https://github.com/module-federation/module-federation-examples/tree/master).
