@@ -1,9 +1,9 @@
 ---
-title: 'Micro-Frontend Part 1: Module Federation'
-date: '2025-5-26'
-summary: An introduction to micro-frontends and Module Federation, exploring how this architecture enables independent, framework-agnostic frontend development.
+title: 'Micro-Frontend Part 1: Intro to Module Federation'
+date: '2025-5-22'
+summary: An introduction to Micro-Frontends and Module Federation, exploring how this architecture enables independent, framework-agnostic frontend development.
 tags: ['Sitecore', 'Module Federation']
-draft: true
+draft: false
 images: ['/static/images/blog-thumbnails/500x300_module-federation-sitecore.png']
 authors: ['default']
 ---
@@ -147,9 +147,10 @@ module.exports = {
 ```
 
 Then we consume the remote module within the Host app:
+
 ```js
-import React from 'react';
-import Hero from 'mf_appRemote1/Hero'; // federated import
+import React from 'react'
+import Hero from 'mf_appRemote1/Hero' // federated import
 
 function App(props) {
   return (
@@ -157,28 +158,32 @@ function App(props) {
       <h1>Host App</h1>
       <Hero {...props} />
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
 ```
 
 If for some reason the type generation doesn't work on TS enabled apps, you can temporarily add a `remote-declaration.ts` file. as well:
 
 ```ts
-declare module 'mf_appRemote1/Hero';
+declare module 'mf_appRemote1/Hero'
 ```
 
 ## Module Federation Scenario - SPA control
+
 In a SPA scenario, Remote apps with different (or similar) frameworks are exposed as a module-level application and injected into the Host app, instead of just their components. Each Remote module-level application controls its own routing mechanism and build tooling:
 
 ![SPA module-level application micro-frontend diagram example](/static/images/blog-content-images/mf/mf_bridge-app-mode.png)
 
 ## Module Federation Examples
+
 The MF team has a robust amount of federated examples on Github [here](https://github.com/module-federation/module-federation-examples/tree/master).
 
 For example, a comprehensive React 18 [demo](https://github.com/module-federation/module-federation-examples/tree/master/comprehensive-demo-react18) that connects a React Host with React, SvelteJS, and LitElement Remote apps.
 
 ## Up Next
-- Injecting Federated Next.js React Components in Sitecore Next.js Applications
-- Injecting Sitecore Layout Data and Components into non-Sitecore Next.js Applications
+
+- In [Part 2](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will learn how to use Module Federation to expose components from a Remote App right into your Sitecore Next.js App with type generation.
+
+- In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.

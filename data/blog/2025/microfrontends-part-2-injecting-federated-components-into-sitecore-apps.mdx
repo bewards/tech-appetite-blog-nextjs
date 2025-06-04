@@ -3,7 +3,7 @@ title: 'Micro-Frontend Part 2: Exposing Remote Components in Sitecore'
 date: '2025-6-01'
 summary: Learn how to use Module Federation to expose components from a Remote App right into your Sitecore Next.js App with type generation!
 tags: ['Sitecore', 'Module Federation']
-draft: true
+draft: false
 images: ['/static/images/blog-thumbnails/500x300_module-federation-sitecore.png']
 authors: ['default']
 ---
@@ -18,11 +18,13 @@ The Remote MF Next.js app, `mf_catalog`, is developed locally on `localhost:3001
 The Sitecore app renders the Remote components through *wrapper components*, of which are Sitecore JSS components that just pass down the props to the Remote components, with a sprinkle of magic.
 
 ## Implementing the Scenario
-You can follow along with this scenario by checking out the sample code [here](https://github.com/bewards/MicroFrontend-Sitecore). The steps below will describe the process and important steps. For the purpose of demo and easier setup/checkout, I kept both apps (mf_catalog & mf_marketing) as a Monorepo setup so you can clone the repo and open each app in VSCode as a workspace.
+You can follow along with this scenario by [checking out the demo code](https://github.com/bewards/MicroFrontend-Sitecore). 
+
+The steps below will describe the process and important steps. For the purpose of demo and easier setup/checkout, I kept both apps (mf_catalog & mf_marketing) as a Monorepo setup so you can clone the repo and open each app in VSCode as a workspace.
 
 ### Step 1: The Catalog Remote App
 The Catalog Remote App, `mf_catalog`, will expose three components:
-- Featured Products
+- Featured Products CTA
 - Product Listing
 - Favorites Dropdown
   - displayed within the Sitecore Header component
@@ -543,9 +545,9 @@ To help visualize where the components come from, the `mf_catalog` components ar
 We've successfully exposed Remote catalog components into the Host Sitecore app with a state store that can communicate across boundaries! Clicking on a ❤️ icon from one of the product cards will update the Zustand Favorites store, providing reactive updates to the Favorites dropdown.
 
 ## Up Next
-> In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.
+- In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.
 
-> In [Part 4](/blog/2025/microfrontends-part-4-injecting-sitecore-pages-into-other-apps) of this series, we will look into exposing the Sitecore Dynamic Page Route inside of other Host apps without needing to do any Sitecore specific coding in those apps, giving our Hosted apps the power of Sitecore with minimal configuration.
+- In [Part 4](/blog/2025/microfrontends-part-4-injecting-sitecore-pages-into-other-apps) of this series, we will look into exposing the Sitecore Dynamic Page Route inside of other Host apps without needing to do any Sitecore specific coding in those apps, giving our Hosted apps the power of Sitecore with minimal configuration.
 
 ## Troubleshooting
 If you're still on a certain Windows 10 version, you may run into an error while generating types for the `FederatedTypesPlugin` that has to do with how paths are resolved differently using node. The fun workaround isn't actually bashing your head against the keyboard, it's patching the node_module package, cool!
