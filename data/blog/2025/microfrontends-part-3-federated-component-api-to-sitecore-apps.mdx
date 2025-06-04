@@ -1,48 +1,53 @@
 ---
 title: 'Micro-Frontend Part 3: Federating a Remote API Service with Sitecore Component-level Data Fetching.'
-date: '2025-6-02'
-summary: TODO summary
+date: '2025-6-04'
+summary: Extend your knowledge of Module Federation with Sitecore Wildcard Pages as we build out a Product Detail Page that relies on the Remote Catalog app!
 tags: ['Sitecore', 'Module Federation']
 draft: true
 images: ['/static/images/blog-thumbnails/500x300_module-federation-sitecore.png']
 authors: ['default']
 ---
 
-Incase you missed it, in the previous ~~episode of Dragon Ball Z~~ Module Federation Post [Part 2](/blog/2025/microfrontends-part-2-injecting-federated-components-into-sitecore-apps) we exposed a couple Remote Product-related components into our Sitecore Next.js app. 
+Incase you missed it, in the previous ~~episode of Dragon Ball Z~~ Module Federation Post [Part 2](/blog/2025/microfrontends-part-2-injecting-federated-components-into-sitecore-apps) we exposed a couple Remote Product-related components into our Sitecore Next.js app.
 
 Today in Part 3, we will dive deeper into Remote Components by creating a Product Detail component and Product Detail Page (PDP) Service in Remote that uses the Sitecore component-level data fetching in the Host App, along with a Sitecore wildcard for the PDP Detail page.
 
 ## The Scenario
+
 We've been tasked to control all of the PDP's under a single page presentation, but the Products themselves are still managed somewhere else, such as a PIM, and the client's `PDP Team Vertical` is solely in charge of the PDP functionality, so we need Sitecore to stay within the content lane for this one.
 
+<img src="https://i.imgur.com/13B3uJM.png" width="400" alt="PDP Sitecore Streamers" />
+
 ## Implement the PDP Wildcard
+
 First we need to implement the PDP Wildcard page. The [Accelerate Cookbook for XM Cloud](https://developers.sitecore.com/learn/accelerate/xm-cloud/implementation/information-architecture/wildcard-pages) documents the implementation of a Wildcard page well. The only page router difference in my app is the use of `getServerSideProps` over `getStaticProps`, as seen here on the [demo github repo](https://github.com/bewards/MicroFrontend-Sitecore/blob/main/mf_marketing/headapps/nextjs-starter/src/pages/product/%5B...path%5D.tsx).
 
 ## Implement the PDP Wrapper Component
-The PDP data-fetching will be done within the Sitecore wrapper component using Sitecore's Component `getServerSideProps` data-level fetching. We will import the Remote's PDP Service, call the service with the wild card's page path, and return the matching product data to the Host wrapper component, which in turn will pass the props down into the Remote PDP component. 
+
+The PDP data-fetching will be done within the Sitecore wrapper component using Sitecore's Component `getServerSideProps` data-level fetching. We will import the Remote's PDP Service, call the service with the wild card's page path, and return the matching product data to the Host wrapper component, which in turn will pass the props down into the Remote PDP component.
 
 Note: The Host wrapper component will need a Sitecore JSS Rendering control item added to presentation details in Sitecore, if that wasn't clear. From the demo github repo, you can also `sitecore serialization push` to an empty sandbox instance to create all of the necessary content for the demo.
 
 In the React component below I've highlighted all the MF specific parts:
 
 ```tsx {5,12,22,41,42} showLineNumbers
-import React, { Suspense } from 'react';
-import { GetServerSideComponentProps } from '@sitecore-jss/sitecore-jss-nextjs';
-import { PDPService } from 'mf_catalog/PDPService';
-import PDPLoader from 'components/Loaders/PDPLoader';
-import { ResponseData_PDP } from 'mf_catalog/_types/types/product';
+import React, { Suspense } from 'react'
+import { GetServerSideComponentProps } from '@sitecore-jss/sitecore-jss-nextjs'
+import { PDPService } from 'mf_catalog/PDPService'
+import PDPLoader from 'components/Loaders/PDPLoader'
+import { ResponseData_PDP } from 'mf_catalog/_types/types/product'
 
 // type "ResponseData_PDP" comes from remote module mf_catalog!
 type ProductDetail = ResponseData_PDP & {
-  propFromComponentServerSideProps: string;
-};
+  propFromComponentServerSideProps: string
+}
 
-const MF_ProductDetail = React.lazy(() => import('mf_catalog/ProductDetail'));
+const MF_ProductDetail = React.lazy(() => import('mf_catalog/ProductDetail'))
 
 const ProductDetail: React.FC<ProductDetail> = (props) => {
   // console.log('ProductDetail props', props);
   if (!props) {
-    return <></>;
+    return <></>
   }
   return (
     <>
@@ -54,30 +59,238 @@ const ProductDetail: React.FC<ProductDetail> = (props) => {
         </MF_ProductDetail>
       </Suspense>
     </>
-  );
-};
+  )
+}
 
 export const getServerSideProps: GetServerSideComponentProps = async (
   rendering,
   layoutData,
   context
 ) => {
-  console.log('ProductDetail getServerSideProps', rendering, layoutData, context);
+  console.log('ProductDetail getServerSideProps', rendering, layoutData, context)
 
   // Calling the PDPService.getPDP() method from the mf_catalog module
-  const actualRequestPath = (context?.params?.requestPath as string) || '';
-  const pdpService = new PDPService(actualRequestPath);
-  const pdp = await pdpService.getPDP();
+  const actualRequestPath = (context?.params?.requestPath as string) || ''
+  const pdpService = new PDPService(actualRequestPath)
+  const pdp = await pdpService.getPDP()
 
-  return { propFromComponentServerSideProps: 'hello there server', ...pdp };
-};
+  return { propFromComponentServerSideProps: 'hello there server', ...pdp }
+}
 
-export default ProductDetail;
+export default ProductDetail
 ```
 
-## Implement the Remote Catalog PDP Component and Service
+## Implement the Remote PDP Service
+
+The PDP Service will live under the Remote app. For demo purposes, we will set up the service as a class with the response type `ResponseData_PDP` that is shared with the Host (Sitecore), and fetch the mock response data through the Remote app's Next.js api route handler.
+
+First create the `PDPService`:
+
+> _Note that if this were production-level code, the service would be a factory that handles whether a mock or live service instance is created, but for demo purposes I kept that implementation out._
+
+```ts
+import { withPublicUrl } from '@/lib/url-helper'
+import { Product, ResponseData_PDP } from '@/types/product'
+
+export class PDPService {
+  private pathMatcher: string
+
+  constructor(pathMatcher: string) {
+    this.pathMatcher = pathMatcher
+  }
+
+  public async getPDP(): Promise<ResponseData_PDP> {
+    try {
+      const response = await fetch(withPublicUrl(`/api/pdp/${this.pathMatcher}`))
+
+      if (!response.ok) {
+        return { errorMessage: 'PDP not found' }
+      }
+      const data: ResponseData_PDP = await response.json()
+      return data
+    } catch (error) {
+      console.error('Error fetching PDP:', error)
+      return { errorMessage: 'Internal Server Error' }
+    }
+  }
+}
+```
+
+## Implement the Remote API Route
+
+Normally a 3rd party service might be exposed as a direct REST API, but in our scenario I've emphasized an obtuse way around getting product data to showcase Module Federation, so let's go ahead and create the Remote API Route that will be used internally to securely fetch some data:
+
+```ts
+// mf_catalog/src/pages/api/pdp/[slug].ts
+// Next.js API route support: https://nextjs.org/docs/api-routes/introduction
+import type { NextApiRequest, NextApiResponse } from 'next'
+import path from 'path'
+import fs from 'fs'
+import { Product, ResponseData_PDP } from '@/types/product'
+
+export default function handler(req: NextApiRequest, res: NextApiResponse<ResponseData_PDP>) {
+  try {
+    // Load the JSON file
+    const filePath = path.join(process.cwd(), 'src/data/mock/mock-pdp.json')
+    const fileContents = fs.readFileSync(filePath, 'utf-8')
+    const products = JSON.parse(fileContents) as Product[]
+
+    // Extract the last part of the request path
+    const { slug } = req.query
+    console.log('/api/pdp > slug', slug)
+
+    // Find the product by pathMatcher
+    const product = products.find((p) => p.pathMatcher === slug)
+
+    if (product) {
+      return res.status(200).json(product)
+    } else {
+      return res.status(404).json({ errorMessage: 'PDP not found' })
+    }
+  } catch (error) {
+    return res.status(500).json({ errorMessage: 'Internal Server Error' })
+  }
+}
+```
+
+## Implement the Remote Catalog PDP Component
+
 The Remote Catalog component is fairly trivial since it's only dealing with presentational logic:
 
 ```tsx
+// src/components/ProductDetail.tsx
+import { Product } from '@/types/product'
+import { useI18n } from 'next-localization' // for sitecore dictionary entries
+import Image from 'next/image'
+import React, { FC, PropsWithChildren } from 'react'
 
+export interface ProductDetailProps extends PropsWithChildren, Product {}
+
+const ProductDetail: FC<ProductDetailProps> = (props) => {
+  const { name, model, price, priceLineThrough, description, detailAttributes, image, children } =
+    props
+  const { t } = useI18n() || { t: (key: string) => key }
+
+  return (
+    <div className="container mx-auto p-4 outline-4 outline-offset-[-4px] outline-red-500">
+      <div className="flex flex-col gap-4 md:flex-row">
+        <div className="md:w-3/5">
+          <Image
+            src={image || 'https://placehold.co/700x400'}
+            alt="PDP image"
+            width={500}
+            height={300}
+            className="mb-6"
+          />
+          <h2 className="mb-2 text-xl font-semibold">Details</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {detailAttributes?.map((attribute, index) => (
+              <div key={index} className="flex items-center gap-4">
+                <img src="https://placehold.co/60x60" alt="Detail" className="h-16 w-16" />
+                <p className="flex-1">
+                  <strong>{attribute.name}</strong>: {attribute.value}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="md:w-2/5">
+          <h1 className="mb-4 text-2xl font-bold">{name}</h1>
+          <div className="mb-4 flex items-center gap-2">
+            {priceLineThrough && (
+              <span className="text-gray-500 line-through">{priceLineThrough}</span>
+            )}
+            <span className="font-bold text-red-500">{price || 'Price not available'}</span>
+          </div>
+          <div className="pdp__description">
+            <h2 className="mb-2 text-xl font-semibold">
+              {t('ProductDetail.DescriptionLabel') || 'Description'}
+            </h2>
+            <p className="mb-4">{model?.toLocaleUpperCase()}</p>
+            <p>{description}</p>
+          </div>
+          <div className="mt-2 flex gap-4">
+            <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300">
+              <span className="bg-brown-500 h-6 w-6 rounded-full"></span>
+            </button>
+            <button className="flex h-10 w-10 items-center justify-center rounded-full border border-gray-300">
+              <span className="h-6 w-6 rounded-full bg-orange-500"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+export default ProductDetail
 ```
+
+## Register Both Service and Component for Consumption
+
+Next we will update the existing Module Federation config file, `mf.config.js`, in the Remote Catalog app to expose the PDP Service and component for consumption:
+
+> Note that the service has to include the _`.ts`_ extension, unlike the other entries that are module components.
+
+```js {12,13} showLineNumbers
+// mf_catalog/mf.config.js
+
+// storing URL for deploy support
+const MF_MARKETING_APP_URL = process.env.MARKETING_APP_URL || 'http://localhost:3000'
+
+// NextFederationPlugin.OPTIONS
+const MF_OPTIONS = (isServer, isTypes) => {
+  return {
+    name: 'mf_catalog',
+    filename: 'static/chunks/remoteEntry.js',
+    exposes: {
+      './FavoritesDropdown': './src/components/FavoritesDropdown',
+      './FeaturedProductsByCategoryCTA': './src/components/FeaturedProductsByCategoryCTA',
+      './ProductDetail': './src/components/ProductDetail',
+      './PDPService': './src/services/PDPService.ts',
+      './ProductListing': './src/components/ProductListing',
+    },
+    // The NextFederationPlugin automatically shares all Next and React core dependencies for us
+    shared: {
+      // share for i18n
+      'next-localization': {
+        singleton: true,
+        import: undefined,
+        version: '0.12.0',
+        requiredVersion: '^0.12.0',
+      },
+    },
+  }
+}
+
+module.exports = MF_OPTIONS
+```
+
+## Host Next Config Updates
+
+Since I'm using image hosting from imgur for the image `src` of the mock response, we will need to update the Host app's `images.remotePatterns` setting within the `next.config.js`:
+
+```js
+// place after nextConfig initial settings object
+if (process.env.NODE_ENV === 'development') {
+  nextConfig.images.remotePatterns.push({
+    protocol: 'https',
+    hostname: 'i.imgur.com',
+  })
+}
+```
+
+## Test The Updates
+
+Navigate to the Host app's `http://localhost:3000/product/7703-bravo-16-54-silk-stream-viewers` and you'll be greeted with a wildcard PDP page from Sitecore, with the component-level responsibility of the Remote MF app!
+
+![Demo PDP Page with Module Federation](/static/images/blog-content-images/mf/mf_part3_pdp-page.png)
+
+We can also take a look at the Remote Catalog's terminal logging and see the requests come through the API route:
+
+![MF Remote app API route logging](/static/images/blog-content-images/mf/mf_part3_catalog-logging-slug-from-api.png)
+
+## Up Next
+
+> In [Part 4](/blog/2025/microfrontends-part-4-injecting-sitecore-pages-into-other-apps) of this series, we will look into exposing the Sitecore Dynamic Page Route and Layout inside of other Host apps without needing to do any Sitecore specific coding in those apps, giving our Hosted apps the power of Sitecore with minimal configuration.

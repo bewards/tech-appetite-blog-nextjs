@@ -401,7 +401,7 @@ Before building and running the Sitecore app locally, let's head over to the `pa
 }
 ```
 
-Now we can start the Remote Catalog app under `mf_catalog` with `npm run dev` to expose the Manifest entry file and optionally load the site under `http://localhost:3001`:
+Now we can start the Remote Catalog app under `mf_catalog` with `npm run dev` to expose the Manifest entry file and optionally load the site under `http://localhost:3001/catalog`:
 
 ```ps showLineNumbers
 PS C:\source\MicroFrontend-Sitecore\mf_catalog> npm run dev
@@ -542,7 +542,7 @@ To help visualize where the components come from, the `mf_catalog` components ar
 
 We've successfully exposed Remote catalog components into the Host Sitecore app with a state store that can communicate across boundaries! Clicking on a ❤️ icon from one of the product cards will update the Zustand Favorites store, providing reactive updates to the Favorites dropdown.
 
-## Looking Ahead
+## Up Next
 > In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.
 
 > In [Part 4](/blog/2025/microfrontends-part-4-injecting-sitecore-pages-into-other-apps) of this series, we will look into exposing the Sitecore Dynamic Page Route inside of other Host apps without needing to do any Sitecore specific coding in those apps, giving our Hosted apps the power of Sitecore with minimal configuration.
