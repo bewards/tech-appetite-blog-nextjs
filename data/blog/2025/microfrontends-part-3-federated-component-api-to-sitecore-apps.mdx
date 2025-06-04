@@ -19,9 +19,13 @@ We've been tasked to control all of the PDP's under a single page presentation, 
 First we need to implement the PDP Wildcard page. The [Accelerate Cookbook for XM Cloud](https://developers.sitecore.com/learn/accelerate/xm-cloud/implementation/information-architecture/wildcard-pages) documents the implementation of a Wildcard page well. The only page router difference in my app is the use of `getServerSideProps` over `getStaticProps`, as seen here on the [demo github repo](https://github.com/bewards/MicroFrontend-Sitecore/blob/main/mf_marketing/headapps/nextjs-starter/src/pages/product/%5B...path%5D.tsx).
 
 ## Implement the PDP Wrapper Component
-The PDP data-fetching will be done within the Sitecore wrapper component using Sitecore's Component `getServerSideProps` data-level fetching. We will import the Remote's PDP Service, call the service with the wild card's page path, and return the matching product data to the Host wrapper component, which in turn will pass the props down into the Remote PDP component. I've highlighted all the MF parts below:
+The PDP data-fetching will be done within the Sitecore wrapper component using Sitecore's Component `getServerSideProps` data-level fetching. We will import the Remote's PDP Service, call the service with the wild card's page path, and return the matching product data to the Host wrapper component, which in turn will pass the props down into the Remote PDP component. 
 
-```tsx {3} showLineNumbers
+Note: The Host wrapper component will need a Sitecore JSS Rendering control item added to presentation details in Sitecore, if that wasn't clear. From the demo github repo, you can also `sitecore serialization push` to an empty sandbox instance to create all of the necessary content for the demo.
+
+In the React component below I've highlighted all the MF specific parts:
+
+```tsx {5,12,22,41,42} showLineNumbers
 import React, { Suspense } from 'react';
 import { GetServerSideComponentProps } from '@sitecore-jss/sitecore-jss-nextjs';
 import { PDPService } from 'mf_catalog/PDPService';
@@ -69,4 +73,11 @@ export const getServerSideProps: GetServerSideComponentProps = async (
 };
 
 export default ProductDetail;
+```
+
+## Implement the Remote Catalog PDP Component and Service
+The Remote Catalog component is fairly trivial since it's only dealing with presentational logic:
+
+```tsx
+
 ```
