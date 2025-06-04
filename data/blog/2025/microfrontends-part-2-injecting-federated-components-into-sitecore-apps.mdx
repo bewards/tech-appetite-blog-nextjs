@@ -3,7 +3,7 @@ title: 'Micro-Frontend Part 2: Exposing Remote Components in Sitecore'
 date: '2025-6-01'
 summary: Learn how to use Module Federation to expose components from a Remote App right into your Sitecore Next.js App with type generation!
 tags: ['Sitecore', 'Module Federation']
-draft: true
+draft: false
 images: ['/static/images/blog-thumbnails/500x300_module-federation-sitecore.png']
 authors: ['default']
 ---
@@ -546,3 +546,30 @@ We've successfully exposed Remote catalog components into the Host Sitecore app 
 > In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.
 
 > In [Part 4](/blog/2025/microfrontends-part-4-injecting-sitecore-pages-into-other-apps) of this series, we will look into exposing the Sitecore Dynamic Page Route inside of other Host apps without needing to do any Sitecore specific coding in those apps, giving our Hosted apps the power of Sitecore with minimal configuration.
+
+## Troubleshooting
+If you're still on a certain Windows 10 version, you may run into an error while generating types for the `FederatedTypesPlugin` that has to do with how paths are resolved differently using node. The fun workaround isn't actually bashing your head against the keyboard, it's patching the node_module package, cool!
+1. `npm install patch-package`
+2. Add the following to the end of the package.json scripts section:
+```json
+  "postinstall": "patch-package"  // postinstall is a reserved npm lifecycle script, neat!
+```
+3. Open up the FederatedTypesPlugin.js file under `node_modules/@module_federation/typescript/dist` and replace this section:
+```js {3,5-6} showLineNumbers
+if (filesToCacheBust.length > 0) {
+    await Promise.all(filesToCacheBust.filter(Boolean).map((file) => {
+        this.logger.log("~~~ I'VE SNUCK INTO THE NODE MODULES ~~~", { origin, typescriptFolderName, file, pathUrlString: path_1.default.join(origin, typescriptFolderName, file) })
+        // const url = new URL(path_1.default.join(origin, typescriptFolderName, file)).toString();
+        const url = new URL(`${origin}/${typescriptFolderName}${file.indexOf('/') === 0 ? '' : '/'}${file}`).toString();
+        const destination = path_1.default.join(this.normalizeOptions.webpackCompilerOptions.context, typescriptFolderName, remote);
+        this.logger.log('Downloading types...');
+        return (0, download_1.default)({
+            url,
+            destination,
+            filename: file,
+        });
+    }));
+    this.logger.log('downloading complete');
+}
+```
+4. Run `npm install`, which now will sniff out our code change and apply it as a patch under `patches/@module-federation+typescript+3.1.3.patch`.
