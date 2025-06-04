@@ -34,7 +34,7 @@ I've put together the current state of the _MF v2.0 Ecosystem_ below. Note that 
 
 ### Module Federation Ecosystem - Build Tools
 
-Rspack, Webpack, and Vite are the currently supposed build tools, implemented as Module Federation npm plugins. Plugins must be installed on both the Remote and Host applications.
+Rspack, Webpack, and Vite are the currently supported build tools, implemented as Module Federation npm plugins. Plugins must be installed on both the Remote and Host applications.
 
 Build tools can be different between the host and remote applications just as long as the framework is the same (E.g., both host and remote must use React).
 
@@ -176,6 +176,10 @@ In a SPA scenario, Remote apps with different (or similar) frameworks are expose
 
 ![SPA module-level application micro-frontend diagram example](/static/images/blog-content-images/mf/mf_bridge-app-mode.png)
 
+For React, Angular, Vue, and Svelte libraries, you can go about this approach two possible ways:
+1. Inject the Remote SPA components individually into the DOM or as a SPA (full modular-application, exporting the App) of the Host application, configuring the MF Options to share all of the required core libraries. This would be considered Client-side Rendering (CSR).
+2. Use the Module Federation [Bridge Toolkit](https://module-federation.io/practice/bridge/) to load in application-level modules, letting the toolkit handle the difficulties of loading in different libraries or even different versions of libraries (React v16, v17, v18, and v19 versions).
+
 ## Module Federation Examples
 
 The MF team has a robust amount of federated examples on Github [here](https://github.com/module-federation/module-federation-examples/tree/master).
@@ -184,6 +188,6 @@ For example, a comprehensive React 18 [demo](https://github.com/module-federatio
 
 ## Up Next
 
-- In [Part 2](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will learn how to use Module Federation to expose components from a Remote App right into your Sitecore Next.js App with type generation.
+- In [Part 2](/blog/2025/microfrontends-part-2-injecting-federated-components-into-sitecore-apps) of this series, we will learn how to use Module Federation to expose components from a Remote App right into your Sitecore Next.js App with type generation.
 
 - In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.

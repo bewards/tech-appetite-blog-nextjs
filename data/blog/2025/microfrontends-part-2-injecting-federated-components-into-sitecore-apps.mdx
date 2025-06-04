@@ -36,7 +36,7 @@ Install the required packages: `npm install @module-federation/nextjs-mf @module
 
 Copy over the `.env` file from the Sitecore Next.js app and place it into the root directory. The `.env` file should contain the standard Sitecore properties plus the following for Part 2 and Part 3 XM Cloud interactions. Part 2 will only use `NEXT_PUBLIC_SITE_URL`:
 
-```env
+```env {4}
 SITECORE_SITE_NAME=POPULATE_FROM_SITECORE_CLOUD_DEV_SETTINGS
 SITECORE_EDGE_CONTEXT_ID=POPULATE_FROM_SITECORE_CLOUD_DEV_SETTINGS
 JSS_EDITING_SECRET=POPULATE_FROM_SITECORE_CLOUD_DEV_SETTINGS
@@ -45,7 +45,7 @@ FETCH_WITH=GraphQL
 ```
 
 #### Create the Remote Components
-Below I will show just the Featured Products remote component since the other components give no extra federated functionality (see the github repo link for all three).
+Below I will show just the Featured Products CTA Remote component since the other components give no extra federated functionality (see the github repo link for all three).
 
 `Featured Products` (FeaturedProductsByCategoryCTA) will:
 - use the `next-localization` package to translate dictionary entries from the Sitecore i18n provider
@@ -228,7 +228,7 @@ Now we need to expose the remote components for consumption by the Host App, Sit
 The module federation config settings for Next.js are placed in a separate file called `mf.config.js` for organization purposes:
 
 ```js
-// mf.config.js
+// REMOTE mf_catalog/mf.config.js
 
 // storing URL for deploy support
 const MF_MARKETING_APP_URL = process.env.MARKETING_APP_URL || 'http://localhost:3000';
@@ -267,7 +267,7 @@ module.exports = MF_OPTIONS;
 The MF Settings are then referenced in the `next.config.js` file as `MF_OPTIONS` under webpack settings:
 
 ```js
-// next.config.js
+// REMOTE mf_catalog/next.config.js
 const NextFederationPlugin = require('@module-federation/nextjs-mf');
 const { FederatedTypesPlugin } = require('@module-federation/typescript');
 const MF_OPTIONS = require('./mf.config');
@@ -328,7 +328,7 @@ The Host app will also need the same npm packages installed for Module Federatio
 The Host app will register the remote using the `remotes` property:
 
 ```js
-//mf.config.js
+// HOST mf_marketing/headapps/nextjs-starter/mf.config.js
 const MF_OPTIONS = (isServer) => {
   return {
     name: 'mf_marketing',
@@ -360,7 +360,7 @@ module.exports = MF_OPTIONS;
 Then in the Next config, we will apply the `MF_OPTIONS` again under webpack, but also enable types generation (*other settings muted*):
 
 ```js
-//next.config.js
+// HOST mf_marketing/headapps/next.config.js
 const jssConfig = require('./src/temp/config');
 const NextFederationPlugin = require('@module-federation/nextjs-mf');
 const { FederatedTypesPlugin } = require('@module-federation/typescript');
@@ -395,7 +395,9 @@ const nextConfig = {
 ```
 
 #### Generating the Remote Types
-Before building and running the Sitecore app locally, let's head over to the `package.json` and make a small update required for MF:
+Before building and running the Sitecore app locally, let's head over to the `package.json` and make a small update required for MF below.
+
+We add `NEXT_PRIVATE_LOCAL_WEBPACK=true` so that next will not use its bundled copy of webpack which cannot be used as Module Federation needs access to all of webpack internals.
 
 ```json
 "scripts": {
@@ -418,7 +420,7 @@ PS C:\source\MicroFrontend-Sitecore\mf_catalog> npm run dev
 [ Module Federation Manifest Plugin ] Manifest Link: http://localhost:3001/_next/mf-manifest.json
 ```
 
-Then run Sitecore app as normal with `npm run start:connected`. Next, load the site under `http://localhost:3000`.
+Then run the Sitecore `mf_marketing` app as normal with `npm run start:connected`. Next, load the site under `http://localhost:3000`.
 
 Since we have the webpack logging set to verbose and the Sitecore debug set to all (*), I'll show the important Sitecore and MF outputs below:
 
@@ -456,7 +458,9 @@ Registering JSS component FeaturedProductsByCategoryCTA
 ```
 
 #### Create the Host Wrapper Components
-The Host wrapper component shouldn't have to do much but `React.Lazy` import and render the Remote component.
+The Host wrapper component shouldn't have to do much but `React.Lazy` import and render the Remote component. According to the documentation, the use of `next/dynamic` to import remote modules will cause Hydration Errors.
+
+> We could get away with doing an Eager / Sync import as well, but it's recommended to use dynamic imports when possible to avoid large upfront network transfers or requests.
 
 ```tsx
 // ./src/components/CatalogWrappers/FeaturedProductsByCategoryCTA.tsx
@@ -546,8 +550,6 @@ We've successfully exposed Remote catalog components into the Host Sitecore app 
 
 ## Up Next
 - In [Part 3](/blog/2025/microfrontends-part-3-federated-component-api-to-sitecore-apps) of this series, we will dive deeper into Remote Components, creating a Product Detail component and PDP Service in Remote that uses the Sitecore component-level data fetching in the Host App.
-
-- In [Part 4](/blog/2025/microfrontends-part-4-injecting-sitecore-pages-into-other-apps) of this series, we will look into exposing the Sitecore Dynamic Page Route inside of other Host apps without needing to do any Sitecore specific coding in those apps, giving our Hosted apps the power of Sitecore with minimal configuration.
 
 ## Troubleshooting
 If you're still on a certain Windows 10 version, you may run into an error while generating types for the `FederatedTypesPlugin` that has to do with how paths are resolved differently using node. The fun workaround isn't actually bashing your head against the keyboard, it's patching the node_module package, cool!
