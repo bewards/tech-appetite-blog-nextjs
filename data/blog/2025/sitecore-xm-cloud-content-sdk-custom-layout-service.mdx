@@ -1,0 +1,207 @@
+---
+title: 'The Secret Sauce to Extending the Sitecore XM Cloud Content SDK Layout Service'
+date: '2025-9-21'
+summary: Extend Sitecore XM Cloud's Layout Service using the Content SDK to efficiently pass shared Sitecore data through your application tree. Learn to implement a CustomLayoutService class that enhances the default Layout Service with additional context properties, reducing redundant API calls and improving performance in your Headless implementation.
+tags: ['Sitecore', 'Sitecore XM Cloud', 'Next.js', 'Content SDK']
+draft: false
+images: ['/static/images/blog-thumbnails/500x300_sitecore-xmcloud.png']
+authors: ['default']
+---
+
+> In this post I'll discuss exactly how to go about extending the Layout Service with the new XM Cloud Content SDK application so that you can pass all your shared Sitecore data down through your component tree instead of having every component-level data fetching retrieve the same data with exponentially more calls to the Edge - but first, a bit of history of how we got here!
+
+There are three different types of hosting variations that change how developers can manage and extend the Sitecore Layout. Extending the Layout Service is an efficient way of bolting on additional context properties of the current *route*.
+
+When integrating the Sitecore Headless Services with Sitecore XP (the non-XM Cloud set up), developers could extend the Sitecore Layout Service using the C# pipeline, `getLayoutServiceContext` with C# Sitecore API code. This approach was possible due to the fact that the Headless Service Package was an extension point to the CM/CD.
+
+Moving away from the monolothic XP to Sitecore's Decomposable environment, we find ourselves in the world of XM Cloud and Experience Edge. The first XM Cloud development starter kit, Sitecore JSS, gave Sitecore developers a plugin-based system directly in the rendering host app. To retrieve additional layout data in the previous Sitecore JSS package implementation, we would directly override the `ComponentPropsPlugin` class that came with installing the JSS app template. While the JSS set up was long lived and introduced most of the popular SXA plugins (multisite, sitemap, 404/500 handlers, etc.), the first-hand experience of going through a JSS upgrade could be very strenous due to the lack of complete npm package abstractions.
+
+Sitecore now recommends shifting over to the new Content SDK, providing thorough upgrade path documentation, increased performance, and a new starter template that abstracts away the plugin infrastructure with extension points.
+
+The Content SDK takes a more streamlined Headless SDK approach to defining what the Headless Client can do instead of baking the abstraction into layers of plugins. The starting point of the Layout Service request resides in the Next.js dynamic catch-all route page, highlighted below:
+
+```ts {7} showLinkNumbers
+// pages/[[...path]].tsx
+if (context.preview && isDesignLibraryPreviewData(context.previewData)) {
+  page = await client.getDesignLibraryData(context.previewData);
+} else {
+  page = context.preview
+    ? await client.getPreview(context.previewData)
+    : await client.getPage(path, { locale: context.locale });
+}
+```
+
+We could simply stop here and make an additional API request, but then we may not get the benefits of GraphQL query batching within the Client and the Client is used in other page routes, which means further code decoupling, so let's proceed with the right approach!
+
+Navigating into the client class, `sitecore-client.ts`, we can see that Sitecore has set up the singleton API client with a customizable configuration that includes the previous plugins abstracted away into the `scConfig`, where we can enable/disable each feature:
+
+ ```ts {6} showLineNumbers
+// rendering_host_app/src/lib/sitecore-client.ts
+import { SitecoreClient } from '@sitecore-content-sdk/nextjs/client';
+import scConfig from 'sitecore.config';
+
+const client = new SitecoreClient({
+  ...scConfig,
+});
+
+export default client;
+ ```
+ 
+From the view above it's not easy to tell that the `SitecoreClient` constructor accepts *more than just the imported configuration*, called `SitecoreClientInit`. At the time of writing this post, the Sitecore Content SDK [documentation](https://doc.sitecore.com/xmc/en/developers/content-sdk/the-sitecore-configuration-file.html) does not yet include the *custom* property object as seen below:
+
+```tsx {3} showLineNumbers
+export type SitecoreClientInit = Omit<SitecoreConfig, 'multisite' | 'redirects' | 'personalize'> & {
+    custom?: {
+        layoutService?: LayoutService;
+        dictionaryService?: DictionaryService;
+        editingService?: EditingService;
+        errorPagesService?: ErrorPagesService;
+        componentService?: ComponentLayoutService;
+        sitePathService?: SitePathService;
+    };
+};
+```
+
+To confirm that the custom section is actually being used, we can head over to the [Content SDK GitHub](https://github.com/Sitecore/content-sdk/blob/a36ae5d07b739392e01933f20675ce2be8e8cd38/packages/core/src/client/sitecore-client.ts#L292) and take a look at the exported `SitecoreClient` class. I've highlighted below where Sitecore has given the ability to pass in a custom Layout Service:
+
+```ts {20} showLineNumbers
+export class SitecoreClient implements BaseSitecoreClient {
+  protected layoutService: LayoutService;
+  protected dictionaryService: DictionaryService;
+  protected editingService: EditingService;
+  protected clientFactory: GraphQLRequestClientFactory;
+  protected errorPagesService: ErrorPagesService;
+  protected componentService: ComponentLayoutService;
+  protected sitePathService: SitePathService;
+
+  /**
+   * Init SitecoreClient
+   * @param {SitecoreClientInit} initOptions initOptions for the client, containing site and Sitecore connection details
+   */
+  constructor(protected initOptions: SitecoreClientInit) {
+    this.clientFactory = this.getClientFactory();
+
+    const baseServiceOptions = this.getBaseServiceOptions();
+
+    this.layoutService =
+      initOptions.custom?.layoutService ?? this.getLayoutService(baseServiceOptions);
+    this.dictionaryService =
+      initOptions.custom?.dictionaryService ?? this.getDictionaryService(baseServiceOptions);
+    this.editingService = initOptions.custom?.editingService ?? this.getEditingService();
+    this.errorPagesService = initOptions.custom?.errorPagesService ?? this.getErrorPagesService();
+    this.sitePathService = initOptions.custom?.sitePathService ?? this.getSitePathService();
+    this.componentService = this.getComponentService();
+  }
+```
+
+Now we can go back to our Next.js Rendering Host's `sitecore-client.ts` and implement the custom Layout Service:
+
+```ts {14,15} showLineNumbers
+// rendering_host_app/src/lib/sitecore-client.ts
+import { SitecoreClient } from '@sitecore-content-sdk/nextjs/client';
+
+import { createGraphQLClientFactory } from '@sitecore-content-sdk/nextjs/client';
+import scConfig from 'sitecore.config';0
+
+import { CustomLayoutService } from './custom-services/custom-layout-service';
+
+const clientFactory = createGraphQLClientFactory({ api: scConfig.api });
+
+const client = new SitecoreClient({
+  ...scConfig,
+  custom: {
+    layoutService: new CustomLayoutService(clientFactory),
+  },
+});
+```
+
+The `CustomLayoutService` below extends the regular Sitecore `LayoutService` class. To prevent upgrade issues, we want to ensure that our class does everything that the parent class does by using the `super` call (C# `base` equivalent) within the constructor. The `LayoutService` allows us to override any of the methods, including the key method, `fetchLayoutData`. We're again careful with completely overriding the method by first calling the `super.fetchLayoutData` call, as that call will return us the default Layout Data goodies. We then make our own GraphQL request to gather all of the default Images, stored under the Site Settings, to use in all of our components. Finally we take both of the requests using the ES6 spread operator to combine the layout data under the `context` property:
+
+```ts {11,15} showLineNumbers
+// rendering_host_app/src/lib/custom-services
+import { LayoutService, type LayoutServiceData } from '@sitecore-content-sdk/nextjs';
+import { type GraphQLRequestClientFactory } from '@sitecore-content-sdk/nextjs/client';
+import type { RouteOptions } from '@sitecore-content-sdk/core/layout';
+
+import { GetDefaultImages_GQL } from 'src/util/graphql/queries/getDefaultImagesgraphql';
+import { DefaultImagesQueryData_GraphQL } from 'src/models/graphql/default-images';
+
+export class CustomLayoutService extends LayoutService {
+  constructor(private readonly graphQLClientFactory: GraphQLRequestClientFactory) {
+    super({ clientFactory: graphQLClientFactory });
+  }
+
+  async fetchLayoutData(routePath: string, routeOptions: RouteOptions): Promise<LayoutServiceData> {
+    const layoutData = await super.fetchLayoutData(routePath, routeOptions);
+
+    const graphQLClient = this.graphQLClientFactory();
+    const contextLanguage = layoutData?.sitecore?.context?.language || routeOptions?.locale || 'en';
+
+    const defaultImageResponse = await graphQLClient.request<DefaultImagesQueryData_GraphQL>(
+      GetDefaultImages_GQL,
+      {
+        language: contextLanguage,
+      }
+    );
+
+    return {
+      ...layoutData,
+      sitecore: {
+        ...layoutData.sitecore,
+        context: {
+          ...layoutData.sitecore.context,
+          defaultImages:
+            defaultImageResponse.layout.item.site.defaultImages.jsonValue.fields ?? null,
+        },
+      },
+    };
+  }
+}
+```
+
+Inspecting our request output we can now see the additional `page.layout.sitecore.context` data below:
+
+```json {12} showLineNumbers
+content-sdk:http response in 105ms: { layout: { item: { site: [Object] } } } +107ms
+Page Context Data: 
+{
+  "pageEditing": false,
+  "site": {
+    "name": "SiteMagic"
+  },
+  "pageState": "normal",
+  "editMode": "chromes",
+  "language": "en",
+  "itemPath": "/",
+  "defaultImages": {
+    "desktopLogo": {
+      "value": {
+        "src": "https://xmc-client-dev.sitecorecloud.io/-/media/Project/Client/Site/Default-Images/Logo.png?h=64&iar=0&w=278&ttc=63894193488&tt=22472BC9D5C63D7C2C6F79B850C28444&hash=163D2CDFB9E6B6E4BDCC7C4532F2CC1A",
+        "alt": "Logo Alt",
+        "width": "278",
+        "height": "64"
+      }
+```
+
+### What About Page Builder??
+Don't forget to check Sitecore Page Builder next, as the override **will not get brought over into Page Builder**!
+
+No sweat! 🥵 <br /> If you noticed from the page route request that Sitecore uses a separate method when in page builder mode, called `client.getPreview(...)`.
+
+Simple update the `SitecoreClient` instantiation to include a new `CustomEditingService`:
+```ts
+// rendering_host_app/src/lib/sitecore-client.ts
+const client = new SitecoreClient({
+  ...scConfig,
+  custom: {
+    layoutService: new CustomLayoutService(clientFactory),
+    editingService: new CustomEditingService(clientFactory),
+  },
+});
+```
+
+I won't include this custom Class implementation as it's very similar to the custom Layout Service class above, except that we override the method `fetchEditingData` instead!
+
+![It was Chef's Kiss](https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZGZ5bWpjN2NjcGE1N3Q1bTN3ajRmamJpanFwZnl4M3RncnNkejVxOCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/MPtLqPiT3whGGBaUBo/giphy.gif)
+
+🤘 Shout out to my colleague @Nishtech, [Olivier McNicoll](https://www.linkedin.com/in/olivier-mcnicoll-62729290), for the collaboration on this Chef's Kiss extension point 🤘
