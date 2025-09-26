@@ -8,9 +8,10 @@ images: ['/static/images/blog-thumbnails/500x300_sitecore-xmcloud.png']
 authors: ['default']
 ---
 
-> In this post I'll discuss exactly how to go about extending the Layout Service with the new XM Cloud Content SDK application so that you can pass all your shared Sitecore data down through your component tree instead of having every component-level data fetching retrieve the same data with exponentially more calls to the Edge - but first, a bit of history of how we got here!
+> In this post I'll discuss exactly how to go about extending the Layout Service with the new XM Cloud Content SDK application so that you can pass all your shared Sitecore data down through your component tree instead of having every component-level data fetching retrieve the same data with exponentially more calls to the Edge!
 
-There are three different types of hosting variations that change how developers can manage and extend the Sitecore Layout. Extending the Layout Service is an efficient way of bolting on additional context properties of the current *route*.
+## XP > JSS > Content-SDK: How We Got Here
+Extending the Layout Service is an efficient way of bolting on additional context properties of the current *route*. There are three different types of hosting variations that change how developers can manage and extend the Sitecore Layout.
 
 When integrating the Sitecore Headless Services with Sitecore XP (the non-XM Cloud set up), developers could extend the Sitecore Layout Service using the C# pipeline, `getLayoutServiceContext` with C# Sitecore API code. This approach was possible due to the fact that the Headless Service Package was an extension point to the CM/CD.
 
@@ -32,6 +33,8 @@ if (context.preview && isDesignLibraryPreviewData(context.previewData)) {
 ```
 
 We could simply stop here and make an additional API request, but then we may not get the benefits of GraphQL query batching within the Client and the Client is used in other page routes, which means further code decoupling, so let's proceed with the right approach!
+
+## The Approach
 
 Navigating into the client class, `sitecore-client.ts`, we can see that Sitecore has set up the singleton API client with a customizable configuration that includes the previous plugins abstracted away into the `scConfig`, where we can enable/disable each feature:
 
