@@ -13,6 +13,7 @@ import PostBanner from '@/layouts/PostBanner'
 import { Metadata } from 'next'
 import siteMetadata from '@/data/siteMetadata'
 import { notFound } from 'next/navigation'
+import ImageZoom from '@/components/ImageZoom'
 
 const defaultLayout = 'PostLayout'
 const layouts = {
@@ -119,6 +120,7 @@ export default async function Page(props: { params: Promise<{ slug: string[] }> 
         </div>
       ) : (
         <>
+          <ImageZoom />
           <script
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}

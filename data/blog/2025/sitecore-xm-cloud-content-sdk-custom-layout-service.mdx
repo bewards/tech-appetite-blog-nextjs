@@ -20,7 +20,7 @@ Sitecore now recommends shifting over to the new Content SDK, providing thorough
 
 The Content SDK takes a more streamlined Headless SDK approach to defining what the Headless Client can do instead of baking the abstraction into layers of plugins. The starting point of the Layout Service request resides in the Next.js dynamic catch-all route page, highlighted below:
 
-```ts {7} showLinkNumbers
+```ts {7} showLineNumbers
 // pages/[[...path]].tsx
 if (context.preview && isDesignLibraryPreviewData(context.previewData)) {
   page = await client.getDesignLibraryData(context.previewData);
