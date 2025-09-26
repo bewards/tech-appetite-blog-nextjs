@@ -1,5 +1,3 @@
-// @ts-check
-
 /** @type {import("pliny/config").PlinyConfig } */
 const siteMetadata = {
   title: 'Tech Appetite',
@@ -20,14 +18,13 @@ const siteMetadata = {
   youtube: '',
   linkedin: 'https://www.linkedin.com/in/bensewards',
   locale: 'en-US',
+  // set to true if you want a navbar fixed to the top
+  stickyNav: false,
   analytics: {
     // If you want to use an analytics provider you have to add it to the
     // content security policy in the `next.config.js` file.
     // supports plausible, simpleAnalytics, umami or googleAnalytics
-    plausibleDataDomain: '', // e.g. tailwind-nextjs-starter-blog.vercel.app
     simpleAnalytics: false, // true or false
-    umamiWebsiteId: '', // e.g. 123e4567-e89b-12d3-a456-426614174000
-    posthogProjectApiKey: '', // e.g. AhnJK8392ndPOav87as450xd
     googleAnalytics: {
       googleAnalyticsId: 'G-G741Z774XV', // e.g. G-XXXXXXX
     },
@@ -36,8 +33,7 @@ const siteMetadata = {
   newsletter: {
     // supports mailchimp, buttondown, convertkit, klaviyo, revue, emailoctopus
     // Please add your .env file and modify it according to your selection
-    // provider: 'buttondown',
-    provider: null,
+    provider: 'buttondown',
   },
   comments: {
     // If you want to use an analytics provider you have to add it to the
@@ -86,7 +82,7 @@ const siteMetadata = {
 }
 
 if (process.env.NODE_ENV === 'development') {
-  siteMetadata.siteUrl = ''
+  siteMetadata.siteUrl = 'http://localhost:3000'
 }
 
 module.exports = siteMetadata
