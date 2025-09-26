@@ -15,7 +15,7 @@ const ImageZoom = () => {
     loadImageZoom()
   }, [])
 
-  return <></>;
+  return <></>
 }
 
-export default ImageZoom;
+export default ImageZoom
