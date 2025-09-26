@@ -6412,6 +6412,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fast-image-zoom@npm:^7.0.1":
+  version: 7.0.1
+  resolution: "fast-image-zoom@npm:7.0.1"
+  checksum: b27a8d7f00acafddde4001c31e2696ad99554743e9fe35449ea38c03cb5a5f54887c7a4931a9c1dadaecbb3a9917bc32837bc77001a777290b03a38ef59d14a8
+  languageName: node
+  linkType: hard
+
 "fast-json-stable-stringify@npm:^2.0.0":
   version: 2.1.0
   resolution: "fast-json-stable-stringify@npm:2.1.0"
@@ -11814,6 +11821,7 @@ __metadata:
     eslint-config-next: 15.2.4
     eslint-config-prettier: ^9.1.0
     eslint-plugin-prettier: ^5.2.0
+    fast-image-zoom: ^7.0.1
     github-slugger: ^2.0.0
     globals: ^15.12.0
     gray-matter: ^4.0.2
