@@ -1,5 +1,7 @@
 {
-  "sitecore": 11,
+  "sitecore": 12,
+  "sitecore-ai": 1,
+  "sitecore-symposium": 1,
   "sitecore-xm-cloud": 2,
   "nextjs": 11,
   "content-sdk": 1,

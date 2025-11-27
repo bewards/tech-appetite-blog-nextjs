@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @plugin "@tailwindcss/forms";
 @plugin '@tailwindcss/typography';
 @source '../node_modules/pliny';
@@ -7,8 +7,9 @@
 /* Core theme configuration */
 @theme {
   /* Font families */
-  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
-    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+  --font-sans:
+    var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
 
   /* Colors */
   /* Copied from https://tailwindcss.com/docs/theme#default-theme-variable-reference */
@@ -181,4 +182,38 @@ header svg {
 
 .post-detail img:hover {
   cursor: zoom-in;
+}
+
+.md__blockquote {
+  position: relative;
+  font: inherit;
+  padding: 1em 0 0 0;
+  border-inline-start-width: 0;
+  margin-top: 0.5rem;
+  font-style: italic;
+
+  &::before {
+    position: absolute;
+    content: "‘";
+    font: 700 15em/2em sans-serif;
+    opacity: 20%;
+    top: -0.5em;
+    left: -0.05em;
+    right: unset;
+  }
+  &::after {
+    position: absolute;
+    content: "‘";
+    font: 700 15em/2em sans-serif;
+    opacity: 50%;
+    top: -0.5em;
+    left: -0.25em;
+    right: unset;
+  }
+}
+.md__blockquote--small {
+  &&::after,
+  &&::before {
+    font-size: 10em;
+  }
 }
