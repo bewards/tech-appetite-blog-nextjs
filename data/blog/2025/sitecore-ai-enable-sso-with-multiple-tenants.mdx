@@ -1,0 +1,104 @@
+---
+title: 'Mapping SSO Claims for Multiple Tenants in Sitecore AI'
+date: '2025-10-27'
+summary: 'Learn how to effectively map SSO claims for multiple tenants in Sitecore AI using Entra ID. This guide addresses challenges and provides a claim mapping strategy to ensure proper authentication and authorization across different SSO Connections.'
+tags: ['Sitecore', 'Sitecore AI']
+draft: false
+images: ['/static/images/blog-thumbnails/500x300_sitecore-xmcloud.png']
+authors: ['default']
+---
+
+With Sitecore's powerful SaaS offerings extending out to Single Sign-On (SSO) plug and play capabilities, managing multiple SSO tenants under one identity provider is no longer a hop, skip, and a jump away, as it was with the monolithic XP topology where one had to implement complex configurations and deploy to a separate Identity Server. In this blog post, we'll explore the issue and solve for effectively mapping SSO claims for multiple tenants in Sitecore AI using the popular identity provider, Entra ID (formerly Azure AD).
+
+## The Challenge of Multiple Tenants
+We've set up two separate tenants in Entra ID, each with its own SSO Connection in Sitecore AI. Each tenant has a unique email domain associated with it, e.g., `@company.org` vs. `@company-dev.org`, allowing us to test pre-production authentication and claim mapping while content authors use their production domain connection.
+
+When dealing with multiple tenants, each tenant may have its own set of users, roles, and permissions. This can lead to challenges in ensuring that users are authenticated correctly across different tenants. The key challenges to be aware of when setting up the SSO Connections include:
+
+- **Email domains**: Once an SSO connection is established with 1-N email domains, the domains cannot be changed. If you need to change the domains, you must delete the existing SSO connection (if you need to still use any of the domains listed) and create a new one with the updated list of domains.
+- **SSO Protocol Differences**: While SAML and OIDC are both supported, they have different mechanisms for handling claims and tokens, and during this set up process you'll need to be aware of these differences. OIDC setup requires verifying domain ownership. SAML also requires domain verification along with ensuring the SAML certiificate is valid and properly configured.
+- **Claim mappings**: Each tenant may have different claim mappings, which can lead to confusion if the scopes are not clearly defined.
+
+## Claim Mapping Strategy
+
+SitecoreAI [claim mapping documentation](https://doc.sitecore.com/portal/en/developers/sitecore-cloud-portal/claims-mapping.html) provides a solid foundation for understanding how to map claims effectively, but if you're managing multiple tenants, you'll need to ensure that the configuration is set up to handle each tenant separately, **otherwise only the first tenant will be recognized for mapping**.
+
+The following Claim configuration should be set up **per tenant** in your identity provider, instead of listing the `sources` inline with eachother, plus the `transformation.name` for `roles` value should be unique per tenant, like so:
+
+```xml {10} showLineNumbers
+<!-- 1 CONFIG PER TENANT > app_config/include/Company.Platform.CustomClaims.DevEntraID.config -->
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+	<sitecore>
+		<federatedAuthentication>
+			<identityProviders>
+				<identityProvider id="Auth0">
+					<transformations>
+						<transformation
+						  name="roles2"
+						  type="Sitecore.Owin.Authentication.Services.DefaultTransformation, Sitecore.Owin.Authentication">
+							<sources hint="raw:AddSource">
+								<claim name="con_YOUR_SITECORE_AI_SSO_CONNECTION_ID.xmc_role" />
+							</sources>
+							<targets hint="raw:AddTarget">
+								<claim name="http://schemas.microsoft.com/ws/2008/06/identity/claims/role" />
+							</targets>
+							<keepSource>true</keepSource>
+						</transformation>
+						<transformation
+						  name="custom SSO comment2"
+						  type="Sitecore.Owin.Authentication.Services.DefaultTransformation, Sitecore.Owin.Authentication">
+							<sources hint="raw:AddSource">
+								<claim name="con_YOUR_SITECORE_AI_SSO_CONNECTION_ID.xmc_role" />
+							</sources>
+							<targets hint="raw:AddTarget">
+								<claim name="comment" value="User might have roles assigned via claims mapping" />
+							</targets>
+						</transformation>
+					</transformations>
+				</identityProvider>
+				<identityProvider id="Bearer">
+					<transformations>
+						<transformation
+						  name="roles2"
+						  type="Sitecore.Owin.Authentication.Services.DefaultTransformation, Sitecore.Owin.Authentication">
+							<sources hint="raw:AddSource">
+								<claim name="con_YOUR_SITECORE_AI_SSO_CONNECTION_ID.xmc_role" />
+							</sources>
+							<targets hint="raw:AddTarget">
+								<claim name="http://schemas.microsoft.com/ws/2008/06/identity/claims/role" />
+							</targets>
+							<keepSource>true</keepSource>
+						</transformation>
+						<transformation
+						  name="custom SSO comment2"
+						  type="Sitecore.Owin.Authentication.Services.DefaultTransformation, Sitecore.Owin.Authentication">
+							<sources hint="raw:AddSource">
+								<claim name="con_YOUR_SITECORE_AI_SSO_CONNECTION_ID.xmc_role" />
+							</sources>
+							<targets hint="raw:AddTarget">
+								<claim name="comment" value="User might have roles assigned via claims mapping" />
+							</targets>
+						</transformation>
+					</transformations>
+				</identityProvider>
+			</identityProviders>
+			<propertyInitializer>
+				<maps hint="list">
+					<map name="Comment"
+					  type="Sitecore.Owin.Authentication.Services.DefaultClaimToPropertyMapper, Sitecore.Owin.Authentication"
+					  resolve="true">
+						<data hint="raw:AddData">
+							<source name="comment" />
+							<target name="Comment" />
+						</data>
+					</map>
+				</maps>
+			</propertyInitializer>
+		</federatedAuthentication>
+	</sitecore>
+</configuration>
+```
+
+## Troubleshooting Claim Conflicts
+If you're still having trouble getting multiple SSO Connections (Tenants) working properly, your Identity Provider (IdP) may be reserving the particular Scope Claim's name for its own use, so it's highly probable that the claim name you're trying to map is conflicting with Sitecore or internally at the IdP. In this case, you can try changing the claim name in your IdP to something unique that won't conflict with reserved names. For example, instead of using the source claim `role`, you could use a name such as `custom_roles`.
