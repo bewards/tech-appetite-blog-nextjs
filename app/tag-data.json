@@ -1,6 +1,7 @@
 {
-  "sitecore": 13,
-  "sitecore-ai": 2,
+  "sitecore": 15,
+  "sitecore-ai": 4,
+  "sitecore-connect": 1,
   "sitecore-symposium": 1,
   "sitecore-xm-cloud": 2,
   "nextjs": 11,
@@ -17,10 +18,10 @@
   "tailwind": 3,
   "guide": 4,
   "feature": 1,
-  "typescript": 1,
   "gsap": 1,
   "animations": 1,
   "javascript": 1,
+  "typescript": 1,
   "svg": 1,
   "github": 1,
   "sitecore-powershell-extensions": 1
