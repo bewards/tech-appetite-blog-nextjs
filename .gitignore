@@ -45,3 +45,6 @@ yarn-error.log*
 
 # Contentlayer
 .contentlayer
+
+# blog generation source notes (input for the generate-blog skill)
+.genblog
