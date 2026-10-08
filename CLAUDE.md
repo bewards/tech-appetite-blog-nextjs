@@ -46,7 +46,7 @@ This is the heart of the data layer. It declares two document types:
 - **`Blog`** — frontmatter fields: `title` (required), `date` (required), `tags[]`, `lastmod`, `draft`, `summary`, `images` (json), `authors[]`, `layout`, `bibliography`, `canonicalUrl`. Computed fields add `readingTime`, `slug`, `path`, `filePath`, `toc`, and `structuredData` (schema.org JSON-LD).
 - **`Authors`** — `name` (required), `avatar`, `occupation`, `company`, `email`, social handles, `layout`.
 
-The MDX pipeline configured here (remark/rehype plugins) provides: GFM, math (KaTeX), code titles + syntax highlighting (Prism), auto-linked headings, citations (`.bib`), image→JSX conversion, and GitHub-style alerts.
+The MDX pipeline configured here (remark/rehype plugins) provides: GFM, math (KaTeX), code titles + syntax highlighting (Prism), auto-linked headings, citations (`.bib`), image→JSX conversion, GitHub-style alerts, and Mermaid diagrams (a local `remarkMermaid` plugin turns ` ```mermaid ` fences into `<Mermaid chart>`; `components/Mermaid.tsx` lazy-loads `mermaid` client-side and follows the light/dark theme).
 
 `onSuccess` generates two build artifacts:
 - **`app/tag-data.json`** — counts of every tag (used to build the tags pages). Regenerated on build; do not edit by hand.
@@ -82,7 +82,7 @@ Set per-post via the `layout` frontmatter key (default `PostLayout`):
 
 ### 5. MDX components
 
-- **`components/MDXComponents.tsx`** registers what's usable inside MDX: `Image`, `TOCInline`, custom `a` (Link), `pre`, `table` wrapper, and `BlogNewsletterForm`.
+- **`components/MDXComponents.tsx`** registers what's usable inside MDX: `Image`, `TOCInline`, custom `a` (Link), `pre`, `table` wrapper, `BlogNewsletterForm`, and `Mermaid` (target of ` ```mermaid ` fences).
 - **`components/jsx/`** holds custom MDX-importable components a post can `import` directly: `iframe-responsive`, `video-responsive`, `blockquote`, `azure-network-access-table`. Example in a post: `import IFrameResponsive from '@/components/jsx/iframe-responsive'`.
 
 ## Authoring a new post

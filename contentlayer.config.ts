@@ -22,6 +22,8 @@ import rehypeKatexNoTranslate from 'rehype-katex-notranslate'
 import rehypeCitation from 'rehype-citation'
 import rehypePrismPlus from 'rehype-prism-plus'
 import rehypePresetMinify from 'rehype-preset-minify'
+import { visit } from 'unist-util-visit'
+import type { Root } from 'mdast'
 import siteMetadata from './data/siteMetadata'
 import { allCoreContent, sortPosts } from 'pliny/utils/contentlayer.js'
 import prettier from 'prettier'
@@ -41,6 +43,24 @@ const icon = fromHtmlIsomorphic(
 `,
   { fragment: true }
 )
+
+/**
+ * Converts ```mermaid fences into <Mermaid chart="..." /> so they render as diagrams
+ * (client-side, see components/Mermaid.tsx) instead of highlighted code
+ */
+function remarkMermaid() {
+  return (tree: Root) => {
+    visit(tree, 'code', (node) => {
+      if (node.lang !== 'mermaid') return
+      Object.assign(node, {
+        type: 'mdxJsxFlowElement',
+        name: 'Mermaid',
+        attributes: [{ type: 'mdxJsxAttribute', name: 'chart', value: node.value }],
+        children: [],
+      })
+    })
+  }
+}
 
 const computedFields: ComputedFields = {
   readingTime: { type: 'json', resolve: (doc) => readingTime(doc.body.raw) },
@@ -159,6 +179,7 @@ export default makeSource({
       remarkMath,
       remarkImgToJsx,
       remarkAlert,
+      remarkMermaid,
     ],
     rehypePlugins: [
       rehypeSlug,

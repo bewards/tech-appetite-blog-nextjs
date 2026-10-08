@@ -71,7 +71,7 @@ If there are no pending folders, say so and stop.
 
 Each folder contains:
 - **`post.txt`** — the author's notes: what to write about, optional date suggestion,
-  and image references in the form `insert "filename.png"`.
+- **`context.md`** — usually this file is generated from AI to provide additional information when necessary, such as project code or other artifact references.
 - **Image files** (`.png`, `.jpg`, `.gif`, etc.) referenced by the notes.
 
 Read `post.txt` in full. Note every `insert "..."` reference and confirm the file
@@ -193,6 +193,12 @@ import IFrameResponsive from '@/components/jsx/iframe-responsive'
 Only the components registered in `components/MDXComponents.tsx` plus anything explicitly
 imported are usable inside MDX.
 
+**Diagrams:** sequence diagrams, flowcharts, and other graph-shaped visuals (including
+Mermaid blocks in `context.md`) go in a ` ```mermaid ` fence. No component or import
+needed. Add `accTitle:` / `accDescr:` lines for accessibility. Reserve hand-drawn SVG JSX
+components (like `content-transfer-flow`, `poc-page-composition`) for layouts Mermaid
+draws poorly, such as page-region or box-composition diagrams.
+
 ### 8. Write the body
 
 Write the post in the Voice & Tone DNA above. Preserve the author's real artifacts from
@@ -243,4 +249,6 @@ Do this for every pending folder, confirming each one individually.
   locally) or `yarn build` to regenerate tag data, the search index, and RSS.
 - Don't hand-edit `app/tag-data.json` or `public/search.json` — they're build outputs.
 - The MDX pipeline supports GFM, GitHub-style alerts (`> [!NOTE]`), KaTeX math, code
-  titles, and Prism syntax highlighting — use language-tagged fences for code.
+  titles, Prism syntax highlighting, and Mermaid diagrams (` ```mermaid ` fences, rendered
+  client-side with the hand-drawn look and the site's light/dark theme) — use
+  language-tagged fences for code.
